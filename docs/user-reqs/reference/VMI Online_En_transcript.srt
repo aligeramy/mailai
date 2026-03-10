@@ -1,0 +1,456 @@
+1
+00:00:00,000 --> 00:00:04,280
+Hi, good afternoon.
+
+2
+00:00:04,280 --> 00:00:09,720
+This is a short tutorial on how to use the new CBVMI app.
+
+3
+00:00:09,720 --> 00:00:12,960
+I will first show the online version of the app.
+
+4
+00:00:16,520 --> 00:00:21,480
+So as you might know, we have two versions for this VMI app.
+
+5
+00:00:21,480 --> 00:00:22,880
+One is for online.
+
+6
+00:00:22,880 --> 00:00:25,480
+One is for offline.
+
+7
+00:00:25,480 --> 00:00:29,880
+Online is only to be used if the customer
+
+8
+00:00:29,880 --> 00:00:33,040
+your VMI customer has good internet connection,
+
+9
+00:00:33,040 --> 00:00:36,320
+stable internet connection on the site.
+
+10
+00:00:36,320 --> 00:00:38,040
+If that is not the case,
+
+11
+00:00:38,040 --> 00:00:41,520
+if the customer does not have stable internet connection,
+
+12
+00:00:41,520 --> 00:00:44,560
+then we want to go with the offline mode.
+
+13
+00:00:45,760 --> 00:00:47,680
+So here, as you can see,
+
+14
+00:00:47,680 --> 00:00:49,520
+the first screen is the login screen
+
+15
+00:00:49,520 --> 00:00:52,600
+when you open the CBVMI app.
+
+16
+00:00:52,600 --> 00:00:56,280
+The first thing you want to do is select the user ID.
+
+17
+00:00:56,280 --> 00:00:58,520
+So for this example, we will be selecting
+
+18
+00:00:58,520 --> 00:01:01,200
+Maryland Tremblay as the user ID.
+
+19
+00:01:01,200 --> 00:01:03,720
+So you can see MNTY.
+
+20
+00:01:03,720 --> 00:01:07,840
+And the next step is to enter the password.
+
+21
+00:01:07,840 --> 00:01:10,520
+So by default, for everybody,
+
+22
+00:01:10,520 --> 00:01:15,520
+the password is set as 1, 2, 3, 4, 5, 6, 6 digit number.
+
+23
+00:01:18,360 --> 00:01:20,440
+We also have option to change password.
+
+24
+00:01:20,440 --> 00:01:24,200
+As you can see here, you can change password
+
+25
+00:01:24,200 --> 00:01:26,160
+as per your liking.
+
+26
+00:01:26,160 --> 00:01:30,520
+But for this example, we will go with the default password.
+
+27
+00:01:30,520 --> 00:01:32,200
+So we login as Maryland
+
+28
+00:01:32,200 --> 00:01:36,640
+and we enter the password 1, 2, 3, 4, 5, 6 and login.
+
+29
+00:01:37,920 --> 00:01:41,720
+Here, you are on the main home screen of the app.
+
+30
+00:01:41,720 --> 00:01:45,640
+And your first option here is for online order.
+
+31
+00:01:45,640 --> 00:01:50,640
+So we click that and you will see the spade here.
+
+32
+00:01:50,880 --> 00:01:54,240
+We are only going to select order management,
+
+33
+00:01:54,240 --> 00:01:57,400
+which is the first tab shown here.
+
+34
+00:01:57,400 --> 00:01:59,600
+Other tabs are not required at this point.
+
+35
+00:02:00,560 --> 00:02:03,400
+Here, as you can see, you have all the customers
+
+36
+00:02:04,360 --> 00:02:05,520
+for that user ID.
+
+37
+00:02:05,520 --> 00:02:07,560
+So for example, for Maryland,
+
+38
+00:02:07,560 --> 00:02:10,320
+she works with all the Quebec accounts.
+
+39
+00:02:10,320 --> 00:02:13,800
+So she will only be able to see all the VMI accounts
+
+40
+00:02:13,800 --> 00:02:15,480
+from the Quebec region.
+
+41
+00:02:15,480 --> 00:02:18,560
+So as you can see, all the RFP sites are here.
+
+42
+00:02:20,240 --> 00:02:23,600
+We will select RFP Doble for this example.
+
+43
+00:02:24,400 --> 00:02:28,560
+You can also see the search bar shown here above.
+
+44
+00:02:28,560 --> 00:02:30,080
+This is like a Google search.
+
+45
+00:02:30,080 --> 00:02:33,840
+So basically, if you don't want to scroll down the list manually
+
+46
+00:02:33,840 --> 00:02:37,400
+and you know the customer that you are looking to do the scan for,
+
+47
+00:02:37,400 --> 00:02:39,680
+you just enter the customer number here.
+
+48
+00:02:39,680 --> 00:02:43,840
+So 3, 9, 0, 0, 2 and you're going to see RFP Doble.
+
+49
+00:02:43,840 --> 00:02:46,400
+Or if you want to type with the letters,
+
+50
+00:02:46,400 --> 00:02:50,400
+you can type D-O-L, B-E-A and you see the customer there.
+
+51
+00:02:51,440 --> 00:02:52,960
+And you select the customer,
+
+52
+00:02:55,200 --> 00:02:59,920
+and you select the ship to that you want to start scanning for that customer.
+
+53
+00:02:59,920 --> 00:03:03,680
+So for this example, we're going to select VMI1 main store.
+
+54
+00:03:03,680 --> 00:03:09,280
+And when you are in this screen, you can see the inventory loaded
+
+55
+00:03:09,280 --> 00:03:11,760
+for that ship to for the customer.
+
+56
+00:03:11,760 --> 00:03:15,600
+So all items here showing for VMI1 for RFP Doble.
+
+57
+00:03:16,880 --> 00:03:19,520
+Here you can see on the search bar shown above,
+
+58
+00:03:20,400 --> 00:03:22,320
+you can enter the CPN number.
+
+59
+00:03:22,320 --> 00:03:26,480
+So you can enter D-B-1523.
+
+60
+00:03:27,120 --> 00:03:31,120
+And it's going to only show you the one item for that CPN.
+
+61
+00:03:31,120 --> 00:03:33,760
+You can also use CB part number.
+
+62
+00:03:33,760 --> 00:03:40,240
+So 462055B-F.
+
+63
+00:03:40,240 --> 00:03:43,360
+So it's a Brighton Best part and it's going to show you that.
+
+64
+00:03:43,360 --> 00:03:49,120
+So it's like a Google search where you can use to search for the item
+
+65
+00:03:49,120 --> 00:03:49,920
+that you want to scan.
+
+66
+00:03:51,600 --> 00:03:56,400
+If you want to use the camera, you also have the option of opening the scan option here.
+
+67
+00:03:56,960 --> 00:03:59,440
+And we'll ask you to access your camera.
+
+68
+00:03:59,440 --> 00:04:03,200
+You say allow and you will have the bar code here.
+
+69
+00:04:03,200 --> 00:04:07,760
+And you can scan the label and it will pick up the CPN from the label
+
+70
+00:04:08,320 --> 00:04:11,280
+and populate it in the search bar shown above.
+
+71
+00:04:12,160 --> 00:04:18,080
+So two options, you can either do scan with the camera or you can enter manually the CPN number here.
+
+72
+00:04:18,880 --> 00:04:24,800
+For example, D-B-1523 and you're going to see that one item there.
+
+73
+00:04:26,720 --> 00:04:29,040
+For this example, I'm going to select two items.
+
+74
+00:04:29,040 --> 00:04:30,720
+So I'm going to do the first item here.
+
+75
+00:04:30,720 --> 00:04:35,120
+I enter a quantity, let's say we want to order 100 of this item.
+
+76
+00:04:35,760 --> 00:04:41,520
+When you enter the quantity in this box, please make sure that you check this order quantity box.
+
+77
+00:04:42,320 --> 00:04:45,040
+If you do not check or if you forget to check this box,
+
+78
+00:04:46,000 --> 00:04:50,000
+this item will not be added to the shopping cart, which I will show you in the next step.
+
+79
+00:04:50,560 --> 00:04:55,440
+So it's very important to check this box for the item that you want to order.
+
+80
+00:04:56,160 --> 00:04:57,440
+So we ordered one item now.
+
+81
+00:04:57,440 --> 00:04:58,400
+We're going to order one more.
+
+82
+00:04:58,400 --> 00:05:02,320
+We're going to scan this item and we're going to say we want 50 of this item.
+
+83
+00:05:02,880 --> 00:05:05,200
+And again, make sure you check box here.
+
+84
+00:05:05,840 --> 00:05:07,200
+So we have two items here.
+
+85
+00:05:07,840 --> 00:05:11,520
+And let's say that is all that I want to scan for this customer.
+
+86
+00:05:12,080 --> 00:05:16,480
+So as you can see on the bottom right corner, I click on the shopping cart icon.
+
+87
+00:05:17,200 --> 00:05:22,720
+When I click on the shopping cart, it takes me to the next screen where I can review any item.
+
+88
+00:05:22,720 --> 00:05:27,200
+If I want to change or if I want to delete, I can click on the delete option and delete the item.
+
+89
+00:05:28,160 --> 00:05:29,680
+And review everything.
+
+90
+00:05:29,680 --> 00:05:35,600
+If everything is good, you click on review on the left bottom corner of your screen.
+
+91
+00:05:36,400 --> 00:05:41,200
+And this takes you to the final order screen, where it gives you one more chance to look
+
+92
+00:05:41,760 --> 00:05:43,280
+and check if everything is good.
+
+93
+00:05:43,920 --> 00:05:46,400
+If everything is good, you send the order.
+
+94
+00:05:47,680 --> 00:05:50,720
+Also, you have an option to make it urgent or normal.
+
+95
+00:05:50,720 --> 00:05:56,080
+So right now, by default, it is normal, but you can also make it urgent by clicking on this
+
+96
+00:05:56,080 --> 00:05:59,040
+toggle and it will send you high importance email.
+
+97
+00:05:59,680 --> 00:06:08,720
+And I place order, I click on order, here, and give it maybe 10 or 20 seconds.
+
+98
+00:06:12,080 --> 00:06:12,480
+Yes.
+
+99
+00:06:12,480 --> 00:06:22,320
+So as you can see here, on the top of your screen, you have a message saying order,
+
+100
+00:06:22,320 --> 00:06:24,240
+placed, and email sent successfully.
+
+101
+00:06:24,960 --> 00:06:33,360
+Now, if you check your outlook email, you're going to see the order in your email,
+
+102
+00:06:33,360 --> 00:06:34,880
+in your inbox, just like this.
+
+103
+00:06:34,880 --> 00:06:36,720
+So I place the order at 301.
+
+104
+00:06:36,720 --> 00:06:42,240
+At 301 p.m., I get the email from the app saying that I have placed the VMI order,
+
+105
+00:06:42,240 --> 00:06:45,920
+customer number, ship two, and customer name.
+
+106
+00:06:45,920 --> 00:06:48,400
+And here you can see the order details.
+
+107
+00:06:48,400 --> 00:06:50,240
+You have all the important information here,
+
+108
+00:06:51,760 --> 00:06:59,120
+order date, order time, quantity, bin location, CB part number, and the person who placed the
+
+109
+00:06:59,120 --> 00:07:00,720
+order, in this case, it was mean.
+
+110
+00:07:01,280 --> 00:07:09,120
+So, and once we have this app connected with NetSuite, the final step is after this email,
+
+111
+00:07:09,120 --> 00:07:14,240
+you're going to get another email from NetSuite for the quote request that is created for this order.
+
+112
+00:07:14,800 --> 00:07:21,040
+And with the QU quotation number, and you will use that to log into NetSuite to process that order
+
+113
+00:07:21,040 --> 00:07:25,680
+for the customer, like you currently do for your VMI customers.
+
+114
+00:07:26,320 --> 00:07:28,640
+So this was for the online orders.
+
