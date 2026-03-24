@@ -16,10 +16,12 @@
   <!-- Outlook: IconUrl must be 64×64; HighResolutionIconUrl must be 128×128 (other Office apps use 32 and 64). -->
   <IconUrl DefaultValue="https://localhost:3000/assets/icon-64.png" />
   <HighResolutionIconUrl DefaultValue="https://localhost:3000/assets/icon-128.png" />
-  <SupportUrl DefaultValue="https://example.com/mailai-support" />
+  <!-- SupportUrl: product help / home. For AppSource, also supply Privacy policy and Terms URLs in Partner Center: same host as NEXT_PUBLIC_SITE_URL, paths /privacy and /terms -->
+  <SupportUrl DefaultValue="https://smartreply.space" />
 
   <AppDomains>
     <AppDomain>https://localhost:3000</AppDomain>
+    <AppDomain>https://smartreply.space</AppDomain>
   </AppDomains>
 
   <Hosts>

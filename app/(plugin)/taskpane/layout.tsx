@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import "../globals.css";
+import "@/app/globals.css";
 import Script from "next/script";
 import { ThemeProvider } from "@/components/theme-provider";
 

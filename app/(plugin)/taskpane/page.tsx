@@ -67,7 +67,6 @@ const TONES: { value: ReplyTone; label: string }[] = [
   { value: "professional", label: "Professional" },
   { value: "friendly", label: "Friendly" },
   { value: "concise", label: "Concise" },
-  { value: "formal", label: "Formal" },
   { value: "casual", label: "Casual" },
 ];
 const LENGTHS: { value: ReplyLength; label: string }[] = [
@@ -1095,7 +1094,7 @@ export default function TaskpanePage() {
         </button>
         {contextExpanded && (
           <textarea
-            className="mt-1 min-h-24 w-full resize-y rounded-md border border-input bg-transparent px-1 py-1 text-[11px] leading-snug outline-none transition-[border-color,box-shadow,color] duration-200 placeholder:text-muted-foreground/70 hover:border-input hover:text-foreground hover:shadow-sm focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30"
+            className="mt-1 min-h-24 w-full resize-none rounded-md border border-input bg-transparent px-1 py-1 text-[11px] leading-snug outline-none transition-[border-color,box-shadow,color] duration-200 placeholder:text-muted-foreground/70 hover:border-input hover:text-foreground hover:shadow-sm focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30"
             id="context-input"
             onChange={(e) =>
               setAdditionalContext((e.target as HTMLTextAreaElement).value)

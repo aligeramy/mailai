@@ -3,7 +3,12 @@ import { Geist, Geist_Mono, Inter } from "next/font/google";
 import "./globals.css";
 import { JsonLd } from "@/components/json-ld";
 import { ThemeProvider } from "@/components/theme-provider";
-import { SITE_DESCRIPTION, SITE_NAME, SITE_URL } from "@/lib/site-config";
+import {
+  SITE_DESCRIPTION,
+  SITE_NAME,
+  SITE_SEO_TITLE,
+  SITE_URL,
+} from "@/lib/site-config";
 import { cn } from "@/lib/utils";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
@@ -21,7 +26,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
-    default: `${SITE_NAME} — AI reply generator`,
+    default: SITE_SEO_TITLE,
     template: `%s | ${SITE_NAME}`,
   },
   description: SITE_DESCRIPTION,
@@ -39,13 +44,13 @@ export const metadata: Metadata = {
     locale: "en_US",
     url: SITE_URL,
     siteName: SITE_NAME,
-    title: `${SITE_NAME} — AI reply generator`,
+    title: SITE_SEO_TITLE,
     description: SITE_DESCRIPTION,
     images: [{ url: "/logo.png", width: 300, height: 300, alt: SITE_NAME }],
   },
   twitter: {
     card: "summary_large_image",
-    title: `${SITE_NAME} — AI reply generator`,
+    title: SITE_SEO_TITLE,
     description: SITE_DESCRIPTION,
     images: ["/logo.png"],
   },

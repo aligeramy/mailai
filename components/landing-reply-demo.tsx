@@ -1,11 +1,13 @@
 "use client";
 
-import { Copy, Download, Loader2, Sparkles } from "lucide-react";
-import { type PointerEvent, useCallback, useId, useState } from "react";
+import { Copy, Loader2, Sparkles } from "lucide-react";
+import type { CSSProperties } from "react";
+import { useId, useState } from "react";
+import { OutlookAddinButton } from "@/components/outlook-addin-button";
+import { ReplyComposerToolbar } from "@/components/reply-composer-toolbar";
 import { Button } from "@/components/ui/button";
-import { buttonVariants } from "@/components/ui/button-variants";
-import { OUTLOOK_ADDIN_URL } from "@/lib/site-config";
-import type { EmailChain } from "@/lib/types";
+import { useGlowSheen } from "@/hooks/use-glow-sheen";
+import type { EmailChain, ReplyLength, ReplyTone } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 function buildDemoChainFromPaste(text: string): EmailChain {
@@ -35,15 +37,9 @@ export function LandingReplyDemo() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [glow, setGlow] = useState({ x: 50, y: 50 });
-
-  const updateGlow = useCallback((e: PointerEvent<HTMLButtonElement>) => {
-    const r = e.currentTarget.getBoundingClientRect();
-    setGlow({
-      x: ((e.clientX - r.left) / r.width) * 100,
-      y: ((e.clientY - r.top) / r.height) * 100,
-    });
-  }, []);
+  const [tone, setTone] = useState<ReplyTone>("professional");
+  const [length, setLength] = useState<ReplyLength>("normal");
+  const generateSheen = useGlowSheen();
 
   const generate = async () => {
     const trimmed = input.trim();
@@ -62,8 +58,8 @@ export function LandingReplyDemo() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           emailChain,
-          tone: "professional",
-          length: "normal",
+          tone,
+          length,
         }),
       });
       const data = (await res.json()) as { error?: string; reply?: string };
@@ -99,25 +95,38 @@ export function LandingReplyDemo() {
       <label className="sr-only" htmlFor={inputId}>
         Message to reply to
       </label>
-      <textarea
+      <div
         className={cn(
-          "min-h-[180px] w-full resize-y rounded-2xl border border-border/80 bg-card/60 px-4 py-4 text-[0.9375rem] text-foreground leading-relaxed shadow-sm",
-          "outline-none transition-[border-color,box-shadow,background-color] duration-200",
-          "placeholder:text-muted-foreground/75",
-          "hover:border-border hover:bg-card/80",
-          "focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/35"
+          "overflow-hidden rounded-2xl border border-border/80 bg-card/60 shadow-sm transition-[border-color,box-shadow] duration-200",
+          "hover:border-border",
+          "focus-within:border-sky-400/50 focus-within:ring-[1.5px] focus-within:ring-sky-400 focus-within:ring-offset-2 focus-within:ring-offset-background"
         )}
-        id={inputId}
-        onChange={(e) => setInput(e.target.value)}
-        placeholder="Paste the email or message you need to reply to…"
-        value={input}
-      />
+      >
+        <textarea
+          className={cn(
+            "min-h-[180px] w-full resize-none border-0 bg-transparent px-4 pt-4 pb-4 text-[0.9375rem] text-foreground leading-relaxed outline-none",
+            "placeholder:text-muted-foreground/75",
+            "focus-visible:ring-0"
+          )}
+          id={inputId}
+          onChange={(e) => setInput(e.target.value)}
+          placeholder="Paste the email or message you need to reply to…"
+          value={input}
+        />
+        <ReplyComposerToolbar
+          disabled={loading}
+          length={length}
+          onLengthChange={setLength}
+          onToneChange={setTone}
+          tone={tone}
+        />
+      </div>
 
       <div className="mt-5 flex w-full flex-col gap-3 sm:flex-row sm:items-center sm:justify-center">
         {loading ? (
           <Button
             aria-busy
-            className="h-12 w-full rounded-full px-8 shadow-md sm:min-w-[200px] sm:flex-1"
+            className="h-12 w-full rounded-xl px-8 shadow-md sm:min-w-[200px] sm:flex-1"
             disabled
             size="lg"
             type="button"
@@ -128,22 +137,24 @@ export function LandingReplyDemo() {
         ) : (
           <Button
             className={cn(
-              "group/gen relative h-12 w-full overflow-hidden rounded-full px-8 shadow-md sm:min-w-[200px] sm:flex-1",
+              "group/gen relative h-12 w-full overflow-hidden rounded-xl px-8 shadow-md sm:min-w-[200px] sm:flex-1",
               "bg-primary text-primary-foreground transition-[box-shadow,filter,transform] duration-200",
               "hover:shadow-lg hover:brightness-[1.06] active:scale-[0.99]"
             )}
             onClick={generate}
-            onPointerEnter={updateGlow}
-            onPointerLeave={() => setGlow({ x: 50, y: 50 })}
-            onPointerMove={updateGlow}
+            onPointerEnter={generateSheen.handlePointerEnter}
+            onPointerMove={generateSheen.updateGlow}
             type="button"
           >
             <span
               aria-hidden
-              className="pointer-events-none absolute inset-0 rounded-[inherit] opacity-0 transition-opacity duration-300 group-hover/gen:opacity-100"
-              style={{
-                background: `radial-gradient(circle at ${glow.x}% ${glow.y}%, oklch(1 0 0 / 0.28) 0%, transparent 52%)`,
-              }}
+              className="mailai-glow-sheen mailai-glow-sheen--subtle pointer-events-none absolute inset-0 rounded-[inherit] opacity-0 transition-opacity duration-300 group-hover/gen:opacity-100"
+              style={
+                {
+                  "--mailai-glow-x": `${generateSheen.glow.x}%`,
+                  "--mailai-glow-y": `${generateSheen.glow.y}%`,
+                } as CSSProperties
+              }
             />
             <span className="relative z-1 flex items-center justify-center gap-2 font-medium">
               <Sparkles
@@ -156,19 +167,7 @@ export function LandingReplyDemo() {
           </Button>
         )}
 
-        <a
-          className={cn(
-            buttonVariants({ size: "lg", variant: "outline" }),
-            "inline-flex h-12 w-full items-center justify-center gap-2 rounded-full border-border/90 bg-background/80 px-8 font-medium shadow-sm backdrop-blur-sm transition-[background-color,box-shadow,color] duration-200",
-            "hover:border-border hover:bg-muted/50 hover:shadow-md sm:min-w-[200px] sm:flex-1"
-          )}
-          href={OUTLOOK_ADDIN_URL}
-          rel="noopener noreferrer"
-          target="_blank"
-        >
-          <Download aria-hidden className="size-4 shrink-0" />
-          Outlook add-in
-        </a>
+        <OutlookAddinButton />
       </div>
 
       {error ? (

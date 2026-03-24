@@ -1,17 +1,30 @@
 import type { Metadata } from "next";
 import Image from "next/image";
+import Link from "next/link";
 import { LandingReplyDemo } from "@/components/landing-reply-demo";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { SITE_DESCRIPTION, SITE_NAME, SITE_URL } from "@/lib/site-config";
+import {
+  COPYRIGHT_ATTRIBUTION,
+  COPYRIGHT_PRODUCT,
+  SITE_DESCRIPTION,
+  SITE_HEADER_BRAND,
+  SITE_HEADER_LOCKUP,
+  SITE_HERO_EYEBROW,
+  SITE_HERO_TITLE_LINE1,
+  SITE_HERO_TITLE_LINE2,
+  SITE_NAME,
+  SITE_SEO_TITLE,
+  SITE_URL,
+} from "@/lib/site-config";
 
 export const metadata: Metadata = {
   title: {
-    absolute: `${SITE_NAME} — Free AI reply generator for email`,
+    absolute: SITE_SEO_TITLE,
   },
   description: SITE_DESCRIPTION,
   alternates: { canonical: "/" },
   openGraph: {
-    title: `${SITE_NAME} — Free AI reply generator for email`,
+    title: SITE_SEO_TITLE,
     description: SITE_DESCRIPTION,
     url: SITE_URL,
     siteName: SITE_NAME,
@@ -21,16 +34,18 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: `${SITE_NAME} — Free AI reply generator`,
+    title: SITE_SEO_TITLE,
     description: SITE_DESCRIPTION,
     images: ["/logo.png"],
   },
   robots: { index: true, follow: true },
   keywords: [
-    "AI reply generator",
-    "email reply",
-    "AI response generator",
     "Outlook add-in",
+    "Outlook AI reply",
+    "Microsoft 365 email",
+    "AI email reply",
+    "free AI email response generator",
+    "AI response generator",
     "smart reply",
     "free AI writing",
   ],
@@ -52,7 +67,7 @@ export default function Home() {
         <div className="flex items-center gap-2.5">
           <span className="flex size-10 items-center justify-center rounded-xl border border-border/60 bg-card/50 shadow-sm backdrop-blur-sm dark:bg-card/30">
             <Image
-              alt={SITE_NAME}
+              alt={SITE_HEADER_LOCKUP}
               className="size-[1.65rem] object-contain"
               height={40}
               priority
@@ -61,7 +76,11 @@ export default function Home() {
             />
           </span>
           <span className="font-semibold text-foreground text-sm tracking-tight">
-            {SITE_NAME}
+            {SITE_HEADER_BRAND}
+            <span className="font-medium text-muted-foreground">
+              {" "}
+              by {COPYRIGHT_ATTRIBUTION}
+            </span>
           </span>
         </div>
         <ThemeToggle />
@@ -70,14 +89,17 @@ export default function Home() {
       <main className="relative z-1 flex flex-1 flex-col items-center px-6 pt-4 pb-16 md:px-10">
         <div className="flex w-full max-w-3xl flex-col items-center text-center">
           <p className="mb-4 font-medium text-[0.65rem] text-muted-foreground uppercase tracking-[0.22em]">
-            Paste · generate · send
+            {SITE_HERO_EYEBROW}
           </p>
-          <h1 className="mb-4 max-w-[18ch] text-balance font-semibold text-[1.875rem] text-foreground leading-[1.12] tracking-[-0.03em] sm:max-w-none sm:text-4xl md:text-[2.5rem]">
-            Free AI response generator
+          <h1 className="font-(family-name:--font-geist-sans) mb-4 max-w-[min(100%,20rem)] text-balance font-semibold text-[1.875rem] text-foreground leading-[1.06] tracking-[-0.045em] sm:max-w-none sm:text-4xl sm:tracking-[-0.05em] md:text-[2.5rem] md:leading-[1.05] md:tracking-[-0.055em]">
+            <span className="block">{SITE_HERO_TITLE_LINE1}</span>
+            <span className="mt-0.5 block font-medium text-foreground tracking-[-0.04em] sm:mt-1 md:tracking-[-0.045em]">
+              {SITE_HERO_TITLE_LINE2}
+            </span>
           </h1>
           <p className="mb-10 max-w-lg text-pretty text-muted-foreground text-sm leading-relaxed sm:text-base">
-            Paste any paragraph—no setup. Get a clear, professional reply you
-            can edit and use anywhere.
+            Use the Outlook add-in to draft replies next to your thread in
+            Microsoft 365—or paste any text on the web. No signup.
           </p>
 
           <LandingReplyDemo />
@@ -87,18 +109,26 @@ export default function Home() {
       <footer className="relative z-1 mt-auto border-border/40 border-t px-6 py-10">
         <div className="mx-auto flex max-w-3xl flex-col items-center gap-4 text-center sm:flex-row sm:justify-between sm:text-left">
           <p className="text-[0.8125rem] text-muted-foreground leading-snug">
-            © {new Date().getFullYear()} {SITE_NAME}. Built for{" "}
-            <span className="text-foreground/80">smartreply.space</span>.
+            © {new Date().getFullYear()} {COPYRIGHT_PRODUCT} by{" "}
+            <span className="text-foreground/80">{COPYRIGHT_ATTRIBUTION}</span>.
           </p>
-          <p className="text-[0.75rem] text-muted-foreground/80">
-            <a
+          <nav
+            aria-label="Legal"
+            className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-[0.75rem] text-muted-foreground/80 sm:justify-end"
+          >
+            <Link
               className="underline decoration-border underline-offset-4 transition-colors hover:text-foreground"
-              href={`${SITE_URL}/manifest.xml`}
-              rel="noopener noreferrer"
+              href="/terms"
             >
-              Add-in manifest
-            </a>
-          </p>
+              Terms
+            </Link>
+            <Link
+              className="underline decoration-border underline-offset-4 transition-colors hover:text-foreground"
+              href="/privacy"
+            >
+              Privacy
+            </Link>
+          </nav>
         </div>
       </footer>
     </div>
