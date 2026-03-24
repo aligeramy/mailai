@@ -29,7 +29,7 @@ Outlook often requires `https://` add-in URLs. Run:
 pnpm dev:https
 ```
 
-Then update every URL in `public/manifest.xml` (and sideload that manifest) to match your dev origin, e.g. `https://localhost:3000`.
+`public/manifest.xml` is configured for production (`https://smartreply.space`). For local sideloading, replace those URLs in a copy of the manifest (or temporarily edit) to match your dev origin, e.g. `https://localhost:3000`.
 
 ## Quick start
 

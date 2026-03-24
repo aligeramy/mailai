@@ -4,9 +4,9 @@ import Script from "next/script";
 import { ThemeProvider } from "@/components/theme-provider";
 
 export const metadata: Metadata = {
-  title: "Outlook add-in",
+  title: "SmartReply",
   description:
-    "Smart Reply task pane for Outlook — AI-powered reply generation inside your inbox.",
+    "SmartReply task pane for Outlook — AI-powered reply generation inside your inbox.",
   robots: { index: false, follow: false },
 };
 

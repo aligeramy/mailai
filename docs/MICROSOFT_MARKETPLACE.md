@@ -1,11 +1,11 @@
-# Publishing MailAI to Microsoft marketplace (AppSource / Microsoft 365)
+# Publishing SmartReply to Microsoft marketplace (AppSource / Microsoft 365)
 
-MailAI is an **Outlook add-in** (Office Web Add-in) backed by this Next.js app. Listing it in the store is a combination of **manifest quality**, **hosting**, **compliance**, and the **Partner Center** submission.
+SmartReply is an **Outlook add-in** (Office Web Add-in) backed by this Next.js app. Listing it in the store is a combination of **manifest quality**, **hosting**, **compliance**, and the **Partner Center** submission.
 
 ## Before you submit
 
 1. **Stable HTTPS hosting** — Deploy the Next.js app (e.g. Vercel, Azure). Every `SourceLocation`, `IconUrl`, and `AppDomain` in the manifest must use your production origin (no `localhost`).
-2. **Unique add-in id** — In `public/manifest.xml`, replace `<Id>...</Id>` with a **new GUID** that you own for the lifetime of the add-in. Do not reuse the sample id from development.
+2. **Unique add-in id** — `public/manifest.xml` `<Id>` is the production identity (UUID v4). **Keep it unchanged** across updates after you publish; changing it registers a different add-in. Only generate a new Id for a brand-new listing.
 3. **Icons** — Replace placeholder PNGs under `public/assets/` with branded **16, 32, 64, 80, and 128** px assets. Store listings require professional artwork.
 4. **Support & privacy** — Set `<SupportUrl>` to a real help or contact page. Publish a **privacy policy** URL that explains what data is processed (email content is sent to your server and then to OpenAI for generation in the current architecture).
 5. **Name & description** — `DisplayName` and `Description` should match the store listing and avoid claiming official Microsoft or OpenAI affiliation.
@@ -23,7 +23,7 @@ Reviewers typically check:
 - **Clear purpose** — What the add-in does with mailbox data.
 - **External services** — Disclosure that content is sent to OpenAI (or your AI backend) and under what user control.
 - **Authentication** — Phase 1 uses user-supplied or server env API keys; long-term store listings usually expect proper user auth and data handling. Plan to move keys server-side with per-user consent.
-- **Manifest validity** — Schema version, correct permissions (`ReadWriteItem` is powerful; justify it because the add-in inserts reply text).
+- **Manifest validity** — Schema version, correct permissions (`ReadWriteMailbox` is powerful; justify it because the add-in reads thread context and inserts reply text).
 
 ## Microsoft Learn references
 
