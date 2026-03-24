@@ -29,7 +29,7 @@ function isAllowedOfficeOrigin(origin: string): boolean {
   }
 }
 
-export function middleware(request: NextRequest): NextResponse {
+export function proxy(request: NextRequest): NextResponse {
   const origin = request.headers.get("origin");
 
   if (request.method === "OPTIONS" && origin && isAllowedOfficeOrigin(origin)) {

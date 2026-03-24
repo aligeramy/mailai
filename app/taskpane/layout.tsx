@@ -4,8 +4,10 @@ import Script from "next/script";
 import { ThemeProvider } from "@/components/theme-provider";
 
 export const metadata: Metadata = {
-  title: "MailAI - Smart Email Assistant",
-  description: "AI-powered email reply generation",
+  title: "Outlook add-in",
+  description:
+    "Smart Reply task pane for Outlook — AI-powered reply generation inside your inbox.",
+  robots: { index: false, follow: false },
 };
 
 export default function TaskpaneLayout({

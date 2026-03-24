@@ -21,8 +21,11 @@ import {
   Turtle,
 } from "lucide-react";
 import {
+  type Dispatch,
+  type MutableRefObject,
   type ReactElement,
   type ReactNode,
+  type SetStateAction,
   useCallback,
   useEffect,
   useRef,
@@ -87,12 +90,30 @@ const CORRESPONDENT_CONTEXT_OPTIONS: {
 
 const MAILAI_SESSION_HISTORY_UNSUPPORTED = "mailai_history_rest_unsupported";
 
+const RE_CHAIN_FROM = /(?:^|\n)From:\s*(.+)/i;
+const RE_CHAIN_DATE = /(?:^|\n)(?:Date|Sent):\s*(.+)/i;
+const RE_CHAIN_SUBJECT = /(?:^|\n)Subject:\s*(.+)/i;
+const RE_CRLF = /\r\n/g;
+const RE_MULTI_NEWLINE = /\n{3,}/g;
+const RE_MULTI_SPACE = /[ \t]{2,}/g;
+
+const DROPPED_LINE_PATTERNS: RegExp[] = [
+  /^Get\s+Outlook/i,
+  /^Renew now$/i,
+  /^Sign In\|/i,
+  /^All the best,?$/i,
+  /^Dynadot$/i,
+  /^EXPIRING IN/i,
+  /^Total price to renew:/i,
+  /^\*The price quoted above/i,
+];
+
 type ViewState = "main" | "settings";
-type ChainMeta = {
+interface ChainMeta {
   date?: string;
   from?: string;
   subject?: string;
-};
+}
 
 function toneIcon(tone: ReplyTone): ReactElement {
   if (tone === "professional") {
@@ -124,38 +145,123 @@ function lengthIcon(length: ReplyLength): ReactElement {
 }
 
 function extractChainMeta(text: string): ChainMeta {
-  const from = text.match(/(?:^|\n)From:\s*(.+)/i)?.[1]?.trim();
-  const date = text.match(/(?:^|\n)(?:Date|Sent):\s*(.+)/i)?.[1]?.trim();
-  const subject = text.match(/(?:^|\n)Subject:\s*(.+)/i)?.[1]?.trim();
+  const from = text.match(RE_CHAIN_FROM)?.[1]?.trim();
+  const date = text.match(RE_CHAIN_DATE)?.[1]?.trim();
+  const subject = text.match(RE_CHAIN_SUBJECT)?.[1]?.trim();
   return { from, date, subject };
 }
 
 function compactChainBody(input: string): string {
-  const droppedLinePatterns = [
-    /^Get\s+Outlook/i,
-    /^Renew now$/i,
-    /^Sign In\|/i,
-    /^All the best,?$/i,
-    /^Dynadot$/i,
-    /^EXPIRING IN/i,
-    /^Total price to renew:/i,
-    /^\*The price quoted above/i,
-  ];
-
-  const lines = input.replace(/\r\n/g, "\n").split("\n");
+  const lines = input.replace(RE_CRLF, "\n").split("\n");
   const filtered = lines.filter((line) => {
     const trimmed = line.trim();
     if (!trimmed) {
       return true;
     }
-    return !droppedLinePatterns.some((pattern) => pattern.test(trimmed));
+    return !DROPPED_LINE_PATTERNS.some((pattern) => pattern.test(trimmed));
   });
 
   return filtered
     .join("\n")
-    .replace(/\n{3,}/g, "\n\n")
-    .replace(/[ \t]{2,}/g, " ")
+    .replace(RE_MULTI_NEWLINE, "\n\n")
+    .replace(RE_MULTI_SPACE, " ")
     .trim();
+}
+
+/** Demo email chain for testing outside Outlook */
+function createDemoChain(): EmailChain {
+  return {
+    subject: "Q3 Project Timeline Discussion",
+    currentUserEmail: "you@company.com",
+    messages: [
+      {
+        id: "1",
+        from: "sarah@company.com",
+        to: ["you@company.com", "team@company.com"],
+        subject: "Q3 Project Timeline Discussion",
+        body: "Hi team,\n\nI wanted to touch base about the Q3 project timeline. We're currently tracking about two weeks behind schedule on the API integration phase. The main blockers are:\n\n1. The third-party vendor hasn't provided updated documentation\n2. Our testing environment needs additional configuration\n\nCan we schedule a sync this week to discuss mitigation strategies?\n\nBest,\nSarah",
+        timestamp: new Date(Date.now() - 7_200_000),
+      },
+      {
+        id: "2",
+        from: "mike@company.com",
+        to: ["sarah@company.com", "you@company.com", "team@company.com"],
+        subject: "Re: Q3 Project Timeline Discussion",
+        body: "Hi Sarah,\n\nThanks for the heads up. I can confirm the testing environment issue - I've been working with DevOps on it and we should have it resolved by Wednesday.\n\nFor the vendor docs, I'd suggest we proceed with what we have and flag any gaps. Happy to join a sync call.\n\nMike",
+        timestamp: new Date(Date.now() - 3_600_000),
+      },
+    ],
+  };
+}
+
+async function resolveChainForGenerate(
+  emailChain: EmailChain | null,
+  setEmailChain: Dispatch<SetStateAction<EmailChain | null>>
+): Promise<EmailChain> {
+  let chainToUse = emailChain;
+  if (
+    !chainToUse &&
+    typeof Office !== "undefined" &&
+    Office.context?.mailbox?.item
+  ) {
+    const provider = createEmailProvider("outlook");
+    chainToUse = await provider.getEmailChain();
+    setEmailChain(chainToUse);
+  }
+  return chainToUse ?? createDemoChain();
+}
+
+async function resolveCorrespondentHistoryBundle(params: {
+  window: CorrespondentContextWindow;
+  textRef: MutableRefObject<string>;
+  previewLoading: boolean;
+  onUnsupportedHost: () => void;
+}): Promise<{ raw?: string; note?: string }> {
+  const {
+    window: contextWindow,
+    textRef,
+    previewLoading,
+    onUnsupportedHost,
+  } = params;
+  if (contextWindow === "off") {
+    return {};
+  }
+  const cached = textRef.current.trim();
+  if (cached.length > 0) {
+    return {
+      raw: cached,
+      note: previewLoading
+        ? "Reply includes mailbox history loaded so far; older segments may still be loading in the background."
+        : undefined,
+    };
+  }
+  if (previewLoading) {
+    return {
+      note: "Mailbox history is still loading — this reply uses the thread only. Generate again in a few seconds to include history.",
+    };
+  }
+  try {
+    const provider = createEmailProvider("outlook");
+    const raw =
+      await provider.fetchCorrespondentHistoryForPrompt(contextWindow);
+    const trimmed = raw.trim();
+    textRef.current = trimmed;
+    if (trimmed.length > 0) {
+      return { raw: trimmed };
+    }
+    return {
+      note: "Mailbox history: no other messages matched (check range, To address, and manifest ReadWriteMailbox).",
+    };
+  } catch (histErr) {
+    console.warn("[mailai/taskpane] correspondent history failed", histErr);
+    const msg =
+      histErr instanceof Error ? histErr.message : "Mailbox history failed.";
+    if (isRestMailboxHistoryUnsupportedMessage(msg)) {
+      onUnsupportedHost();
+      return { note: restMailboxHistoryUserShortHint() };
+    }
+    return { note: `Mailbox history failed: ${msg}` };
+  }
 }
 
 interface MailboxPreviewCache {
@@ -187,6 +293,86 @@ function historyPhasesFromProgress(
     }
     return { label, status: "pending" };
   });
+}
+
+async function runMailboxHistoryPreviewPipeline(params: {
+  correspondentContext: CorrespondentContextWindow;
+  gen: number;
+  requestGenRef: MutableRefObject<number>;
+  labels: string[];
+  correspondentHistoryTextRef: MutableRefObject<string>;
+  applyMailboxHistoryUnsupportedHost: () => void;
+  applyProgress: (p: CorrespondentHistoryProgress) => void;
+  setHistoryPhaseRows: Dispatch<SetStateAction<HistoryPhaseRow[]>>;
+  setMailboxHistoryPreviewCache: Dispatch<
+    SetStateAction<MailboxPreviewCache | null>
+  >;
+  setMailboxHistoryPreviewLoading: Dispatch<SetStateAction<boolean>>;
+  isCancelled: () => boolean;
+}): Promise<void> {
+  const {
+    correspondentContext,
+    gen,
+    requestGenRef,
+    labels,
+    correspondentHistoryTextRef,
+    applyMailboxHistoryUnsupportedHost,
+    applyProgress,
+    setHistoryPhaseRows,
+    setMailboxHistoryPreviewCache,
+    setMailboxHistoryPreviewLoading,
+    isCancelled,
+  } = params;
+
+  try {
+    const provider = createEmailProvider("outlook");
+    const final = await provider.fetchCorrespondentHistoryForPrompt(
+      correspondentContext,
+      applyProgress
+    );
+    if (isCancelled() || gen !== requestGenRef.current) {
+      return;
+    }
+    const trimmed = final.trim();
+    correspondentHistoryTextRef.current = trimmed;
+    setHistoryPhaseRows(
+      labels.map((label) => ({ label, status: "done" as const }))
+    );
+    if (trimmed.length > 0) {
+      setMailboxHistoryPreviewCache({
+        note: null,
+        text: trimmed,
+        window: correspondentContext,
+      });
+    } else {
+      setMailboxHistoryPreviewCache({
+        note: "No other messages matched for this contact in the selected range. The add-in needs ReadWriteMailbox; check addresses and try another range.",
+        text: null,
+        window: correspondentContext,
+      });
+    }
+  } catch (e) {
+    if (isCancelled() || gen !== requestGenRef.current) {
+      return;
+    }
+    const msg =
+      e instanceof Error ? e.message : "Could not load mailbox history.";
+    console.warn("[mailai/taskpane] mailbox history preview failed", e);
+    if (isRestMailboxHistoryUnsupportedMessage(msg)) {
+      applyMailboxHistoryUnsupportedHost();
+    } else {
+      setMailboxHistoryPreviewCache({
+        note: msg,
+        text: null,
+        window: correspondentContext,
+      });
+      setHistoryPhaseRows([]);
+    }
+  } finally {
+    if (!isCancelled() && gen === requestGenRef.current) {
+      setMailboxHistoryPreviewLoading(false);
+    }
+  }
 }
 
 function MailboxHistoryPreviewBody({
@@ -347,29 +533,17 @@ export default function TaskpanePage() {
     }
   }, [loadEmailChain]);
 
+  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: orchestrates generate, Outlook insert, and toast
   const generateReply = async () => {
     setIsGenerating(true);
     setError(null);
     setToastVisible(false);
 
     try {
-      let chainToUse = emailChain;
-
-      // In Outlook, always prefer live message body/context over demo content.
-      if (
-        !chainToUse &&
-        typeof Office !== "undefined" &&
-        Office.context?.mailbox?.item
-      ) {
-        const provider = createEmailProvider("outlook");
-        chainToUse = await provider.getEmailChain();
-        setEmailChain(chainToUse);
-      }
-
-      // Only use demo data when truly outside Outlook.
-      if (!chainToUse) {
-        chainToUse = createDemoChain();
-      }
+      const chainToUse = await resolveChainForGenerate(
+        emailChain,
+        setEmailChain
+      );
 
       console.info("[mailai/taskpane] generate clicked", {
         hasApiKeyInUI: Boolean(apiKey.trim()),
@@ -379,52 +553,14 @@ export default function TaskpanePage() {
         correspondentContext,
       });
 
-      let correspondentHistoryRaw: string | undefined;
-      let historySideNote: string | undefined;
-      if (correspondentContext !== "off") {
-        const cached = correspondentHistoryTextRef.current.trim();
-        if (cached.length > 0) {
-          correspondentHistoryRaw = cached;
-          if (mailboxHistoryPreviewLoading) {
-            historySideNote =
-              "Reply includes mailbox history loaded so far; older segments may still be loading in the background.";
-          }
-        } else if (mailboxHistoryPreviewLoading) {
-          historySideNote =
-            "Mailbox history is still loading — this reply uses the thread only. Generate again in a few seconds to include history.";
-        } else {
-          try {
-            const provider = createEmailProvider("outlook");
-            const raw =
-              await provider.fetchCorrespondentHistoryForPrompt(
-                correspondentContext
-              );
-            const trimmed = raw.trim();
-            correspondentHistoryTextRef.current = trimmed;
-            if (trimmed.length > 0) {
-              correspondentHistoryRaw = trimmed;
-            } else {
-              historySideNote =
-                "Mailbox history: no other messages matched (check range, To address, and manifest ReadWriteMailbox).";
-            }
-          } catch (histErr) {
-            console.warn(
-              "[mailai/taskpane] correspondent history failed",
-              histErr
-            );
-            const msg =
-              histErr instanceof Error
-                ? histErr.message
-                : "Mailbox history failed.";
-            if (isRestMailboxHistoryUnsupportedMessage(msg)) {
-              historySideNote = restMailboxHistoryUserShortHint();
-              applyMailboxHistoryUnsupportedHost();
-            } else {
-              historySideNote = `Mailbox history failed: ${msg}`;
-            }
-          }
-        }
-      }
+      const historyBundle = await resolveCorrespondentHistoryBundle({
+        window: correspondentContext,
+        textRef: correspondentHistoryTextRef,
+        previewLoading: mailboxHistoryPreviewLoading,
+        onUnsupportedHost: applyMailboxHistoryUnsupportedHost,
+      });
+      const correspondentHistoryRaw = historyBundle.raw;
+      const historySideNote = historyBundle.note;
 
       const response = await fetch("/api/generate-reply", {
         method: "POST",
@@ -452,17 +588,17 @@ export default function TaskpanePage() {
         throw new Error(data.error ?? "Failed to generate reply");
       }
 
-      if (typeof Office !== "undefined" && Office.context?.mailbox?.item) {
+      const inOutlook =
+        typeof Office !== "undefined" && Boolean(Office.context?.mailbox?.item);
+      if (inOutlook) {
         const provider = createEmailProvider("outlook");
         await provider.insertReply(data.reply);
-        const base = "Reply inserted into message body.";
-        setToastMessage(historySideNote ? `${base} ${historySideNote}` : base);
-        setToastVisible(true);
-      } else {
-        const base = "Generated reply (Outlook not detected).";
-        setToastMessage(historySideNote ? `${base} ${historySideNote}` : base);
-        setToastVisible(true);
       }
+      const base = inOutlook
+        ? "Reply inserted into message body."
+        : "Generated reply (Outlook not detected).";
+      setToastMessage(historySideNote ? `${base} ${historySideNote}` : base);
+      setToastVisible(true);
     } catch (err) {
       console.error("[mailai/taskpane] generate failed", err);
       setError(err instanceof Error ? err.message : "Generation failed");
@@ -533,60 +669,26 @@ export default function TaskpanePage() {
       });
     };
 
-    (async () => {
-      try {
-        const provider = createEmailProvider("outlook");
-        const final = await provider.fetchCorrespondentHistoryForPrompt(
-          correspondentContext,
-          applyProgress
-        );
-        if (cancelled || gen !== mailboxHistoryRequestGenRef.current) {
-          return;
-        }
-        const trimmed = final.trim();
-        correspondentHistoryTextRef.current = trimmed;
-        setHistoryPhaseRows(labels.map((label) => ({ label, status: "done" })));
-        if (trimmed.length > 0) {
-          setMailboxHistoryPreviewCache({
-            note: null,
-            text: trimmed,
-            window: correspondentContext,
-          });
-        } else {
-          setMailboxHistoryPreviewCache({
-            note: "No other messages matched for this contact in the selected range. The add-in needs ReadWriteMailbox; check addresses and try another range.",
-            text: null,
-            window: correspondentContext,
-          });
-        }
-      } catch (e) {
-        if (cancelled || gen !== mailboxHistoryRequestGenRef.current) {
-          return;
-        }
-        const msg =
-          e instanceof Error ? e.message : "Could not load mailbox history.";
-        console.warn("[mailai/taskpane] mailbox history preview failed", e);
-        if (isRestMailboxHistoryUnsupportedMessage(msg)) {
-          applyMailboxHistoryUnsupportedHost();
-        } else {
-          setMailboxHistoryPreviewCache({
-            note: msg,
-            text: null,
-            window: correspondentContext,
-          });
-          setHistoryPhaseRows([]);
-        }
-      } finally {
-        if (!cancelled && gen === mailboxHistoryRequestGenRef.current) {
-          setMailboxHistoryPreviewLoading(false);
-        }
-      }
-    })();
+    runMailboxHistoryPreviewPipeline({
+      correspondentContext,
+      gen,
+      requestGenRef: mailboxHistoryRequestGenRef,
+      labels,
+      correspondentHistoryTextRef,
+      applyMailboxHistoryUnsupportedHost,
+      applyProgress,
+      setHistoryPhaseRows,
+      setMailboxHistoryPreviewCache,
+      setMailboxHistoryPreviewLoading,
+      isCancelled: () => cancelled,
+    }).catch(() => {
+      /* logged inside pipeline */
+    });
 
     return () => {
       cancelled = true;
     };
-  }, [correspondentContext, officeReady]);
+  }, [correspondentContext, officeReady, applyMailboxHistoryUnsupportedHost]);
 
   if (view === "settings") {
     return (
@@ -687,6 +789,7 @@ export default function TaskpanePage() {
           Reply Length
         </label>
         <TooltipProvider>
+          {/* biome-ignore lint/a11y/useSemanticElements: segmented control; fieldset breaks tooltip layout */}
           <div
             className="inline-flex overflow-hidden rounded-md border border-white/10 bg-background/40 transition-[background-color,border-color,box-shadow] duration-200 hover:border-white/22 hover:bg-background/55 hover:shadow-sm"
             id="length-group"
@@ -721,6 +824,7 @@ export default function TaskpanePage() {
           Reply Tone
         </label>
         <TooltipProvider>
+          {/* biome-ignore lint/a11y/useSemanticElements: segmented control; fieldset breaks tooltip layout */}
           <div
             className="inline-flex overflow-hidden rounded-md border border-white/10 bg-background/40 transition-[background-color,border-color,box-shadow] duration-200 hover:border-white/22 hover:bg-background/55 hover:shadow-sm"
             id="tone-group"
@@ -756,6 +860,7 @@ export default function TaskpanePage() {
             History
           </label>
         </div>
+        {/* biome-ignore lint/a11y/useSemanticElements: segmented control group */}
         <div
           className="inline-flex max-w-[min(100%,220px)] flex-wrap justify-end gap-0 overflow-hidden rounded-md border border-white/10 bg-background/40 transition-[background-color,border-color,box-shadow] duration-200 hover:border-white/22 hover:bg-background/55 hover:shadow-sm sm:max-w-none sm:flex-nowrap"
           id="correspondent-context-group"
@@ -1023,30 +1128,4 @@ export default function TaskpanePage() {
       )}
     </div>
   );
-}
-
-/** Demo email chain for testing outside Outlook */
-function createDemoChain(): EmailChain {
-  return {
-    subject: "Q3 Project Timeline Discussion",
-    currentUserEmail: "you@company.com",
-    messages: [
-      {
-        id: "1",
-        from: "sarah@company.com",
-        to: ["you@company.com", "team@company.com"],
-        subject: "Q3 Project Timeline Discussion",
-        body: "Hi team,\n\nI wanted to touch base about the Q3 project timeline. We're currently tracking about two weeks behind schedule on the API integration phase. The main blockers are:\n\n1. The third-party vendor hasn't provided updated documentation\n2. Our testing environment needs additional configuration\n\nCan we schedule a sync this week to discuss mitigation strategies?\n\nBest,\nSarah",
-        timestamp: new Date(Date.now() - 7_200_000),
-      },
-      {
-        id: "2",
-        from: "mike@company.com",
-        to: ["sarah@company.com", "you@company.com", "team@company.com"],
-        subject: "Re: Q3 Project Timeline Discussion",
-        body: "Hi Sarah,\n\nThanks for the heads up. I can confirm the testing environment issue - I've been working with DevOps on it and we should have it resolved by Wednesday.\n\nFor the vendor docs, I'd suggest we proceed with what we have and flag any gaps. Happy to join a sync call.\n\nMike",
-        timestamp: new Date(Date.now() - 3_600_000),
-      },
-    ],
-  };
 }

@@ -1,7 +1,9 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono, Inter } from "next/font/google";
 import "./globals.css";
+import { JsonLd } from "@/components/json-ld";
 import { ThemeProvider } from "@/components/theme-provider";
+import { SITE_DESCRIPTION, SITE_NAME, SITE_URL } from "@/lib/site-config";
 import { cn } from "@/lib/utils";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
@@ -17,14 +19,43 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "MailAI",
-  description:
-    "AI-powered email reply generation for Outlook and Gmail. Draft clear replies faster.",
+  metadataBase: new URL(SITE_URL),
+  title: {
+    default: `${SITE_NAME} — AI reply generator`,
+    template: `%s | ${SITE_NAME}`,
+  },
+  description: SITE_DESCRIPTION,
+  applicationName: SITE_NAME,
+  authors: [{ name: SITE_NAME, url: SITE_URL }],
+  creator: SITE_NAME,
   icons: {
     icon: [{ url: "/logo.png", type: "image/png" }],
     apple: [{ url: "/logo.png", type: "image/png" }],
     shortcut: "/logo.png",
   },
+  formatDetection: { telephone: false, email: false, address: false },
+  openGraph: {
+    type: "website",
+    locale: "en_US",
+    url: SITE_URL,
+    siteName: SITE_NAME,
+    title: `${SITE_NAME} — AI reply generator`,
+    description: SITE_DESCRIPTION,
+    images: [{ url: "/logo.png", width: 300, height: 300, alt: SITE_NAME }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: `${SITE_NAME} — AI reply generator`,
+    description: SITE_DESCRIPTION,
+    images: ["/logo.png"],
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#fafafa" },
+    { media: "(prefers-color-scheme: dark)", color: "#0a0a0a" },
+  ],
 };
 
 export default function RootLayout({
@@ -41,6 +72,7 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
+        <JsonLd />
         <ThemeProvider
           attribute="class"
           defaultTheme="system"
