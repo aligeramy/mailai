@@ -1,4 +1,4 @@
-import { Mail } from "lucide-react";
+import Image from "next/image";
 import Link from "next/link";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { buttonVariants } from "@/components/ui/button-variants";
@@ -9,25 +9,28 @@ export default function Home() {
     <div className="relative flex min-h-svh flex-col bg-background">
       <div
         aria-hidden
-        className="pointer-events-none absolute top-[-20%] left-1/2 h-[min(70vh,560px)] w-[min(100vw,720px)] -translate-x-1/2 rounded-[100%] bg-primary/[0.045] blur-3xl dark:bg-primary/[0.09]"
+        className="pointer-events-none absolute top-[-20%] left-1/2 h-[min(70vh,560px)] w-[min(100vw,720px)] -translate-x-1/2 rounded-[100%] bg-primary/4.5 blur-3xl dark:bg-primary/9"
       />
       <div
         aria-hidden
-        className="pointer-events-none absolute inset-0 bg-gradient-to-b from-muted/35 via-transparent to-transparent dark:from-muted/20"
+        className="pointer-events-none absolute inset-0 bg-linear-to-b from-muted/35 via-transparent to-transparent dark:from-muted/20"
       />
 
       <div className="absolute top-5 right-5 z-10 md:top-8 md:right-8">
         <ThemeToggle />
       </div>
 
-      <main className="relative z-[1] flex flex-1 flex-col items-center justify-center px-6 py-16">
-        <div className="flex w-full max-w-[26rem] flex-col items-center text-center sm:max-w-md">
+      <main className="relative z-1 flex flex-1 flex-col items-center justify-center px-6 py-16">
+        <div className="flex w-full max-w-104 flex-col items-center text-center sm:max-w-md">
           <div className="mb-12 flex flex-col items-center gap-6">
-            <span className="flex size-[3.25rem] items-center justify-center rounded-2xl border border-border/70 bg-card/40 shadow-[0_1px_0_0_oklch(1_0_0/0.06)_inset] backdrop-blur-sm dark:border-border/50 dark:bg-card/25 dark:shadow-[0_1px_0_0_oklch(1_0_0/0.04)_inset]">
-              <Mail
-                aria-hidden
-                className="size-[1.35rem] text-foreground/85"
-                strokeWidth={1.5}
+            <span className="flex size-13 items-center justify-center rounded-2xl border border-border/70 bg-card/40 shadow-[0_1px_0_0_oklch(1_0_0/0.06)_inset] backdrop-blur-sm dark:border-border/50 dark:bg-card/25 dark:shadow-[0_1px_0_0_oklch(1_0_0/0.04)_inset]">
+              <Image
+                alt="MailAI"
+                className="size-[2.15rem] object-contain"
+                height={52}
+                priority
+                src="/logo.png"
+                width={52}
               />
             </span>
             <p className="font-medium text-[0.6875rem] text-muted-foreground uppercase tracking-[0.28em]">
@@ -66,7 +69,7 @@ export default function Home() {
         </div>
       </main>
 
-      <footer className="relative z-[1] shrink-0 pb-10 text-center">
+      <footer className="relative z-1 shrink-0 pb-10 text-center">
         <p className="text-[0.6875rem] text-muted-foreground/60 uppercase tracking-[0.2em]">
           MailAI
         </p>

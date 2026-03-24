@@ -1,25 +1,23 @@
 "use client";
 
 import {
-  BotMessageSquare,
   Briefcase,
   ChevronDown,
   ChevronRight,
   Gauge,
   Handshake,
   Key,
-  Loader2,
   MessageSquareText,
   RefreshCw,
   Scale,
   Settings,
   Smile,
   Snail,
-  Sparkles,
   Text,
   Turtle,
 } from "lucide-react";
 import { type ReactElement, useCallback, useEffect, useState } from "react";
+import { GenerateAiReplyButton } from "@/components/generate-ai-reply-button";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -60,16 +58,6 @@ type ChainMeta = {
   from?: string;
   subject?: string;
 };
-
-function taskpaneSubtitle(officeReady: boolean, composeMode: boolean): string {
-  if (!officeReady) {
-    return "Dev preview";
-  }
-  if (composeMode) {
-    return "Compose — replying to thread in draft";
-  }
-  return "Reading message — reply uses full thread when quoted";
-}
 
 function toneIcon(tone: ReplyTone): ReactElement {
   if (tone === "professional") {
@@ -148,7 +136,6 @@ export default function TaskpanePage() {
   const [chainExpanded, setChainExpanded] = useState(false);
   const [apiKey, setApiKey] = useState("");
   const [view, setView] = useState<ViewState>("main");
-  const [composeMode, setComposeMode] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [toastVisible, setToastVisible] = useState(false);
 
@@ -162,7 +149,6 @@ export default function TaskpanePage() {
       const provider = createEmailProvider("outlook");
       const chain = await provider.getEmailChain();
       setEmailChain(chain);
-      setComposeMode(provider.isComposeMode());
       console.info("[mailai/taskpane] loaded email chain", {
         messages: chain.messages.length,
         composeMode: provider.isComposeMode(),
@@ -232,7 +218,6 @@ export default function TaskpanePage() {
         const provider = createEmailProvider("outlook");
         chainToUse = await provider.getEmailChain();
         setEmailChain(chainToUse);
-        setComposeMode(provider.isComposeMode());
       }
 
       // Only use demo data when truly outside Outlook.
@@ -358,16 +343,10 @@ export default function TaskpanePage() {
   return (
     <div className="flex min-h-screen flex-col bg-background p-3">
       {/* Header */}
-      <div className="mb-3 flex items-center justify-between gap-2 px-1 py-1">
+      <div className="mb-3 flex items-center justify-between gap-2 border-white/10 border-b px-1 py-1.5">
         <div className="flex items-center gap-2">
-          <div className="flex size-9 items-center justify-center rounded-lg bg-primary/10">
-            <BotMessageSquare className="size-5 text-primary" />
-          </div>
           <div>
             <h1 className="font-semibold text-lg leading-tight">MailAI</h1>
-            <p className="text-muted-foreground text-xs">
-              {taskpaneSubtitle(officeReady, composeMode)}
-            </p>
           </div>
         </div>
         <div className="flex shrink-0 gap-1">
@@ -406,15 +385,16 @@ export default function TaskpanePage() {
         </label>
         <TooltipProvider>
           <div
-            className="inline-flex rounded-md border border-white/10 bg-background/40 p-1"
+            className="inline-flex overflow-hidden rounded-md border border-white/10 bg-background/40"
             id="length-group"
+            role="group"
           >
             {LENGTHS.map((l) => (
               <Tooltip key={l.value}>
                 <TooltipTrigger asChild>
                   <Button
                     aria-label={l.label}
-                    className="rounded-sm"
+                    className="rounded-none border-y-0 border-r-0 border-l first:rounded-l-md last:rounded-r-md"
                     onClick={() => setLength(l.value)}
                     size="icon-xs"
                     variant={length === l.value ? "default" : "outline"}
@@ -436,15 +416,16 @@ export default function TaskpanePage() {
         </label>
         <TooltipProvider>
           <div
-            className="inline-flex rounded-md border border-white/10 bg-background/40 p-1"
+            className="inline-flex overflow-hidden rounded-md border border-white/10 bg-background/40"
             id="tone-group"
+            role="group"
           >
             {TONES.map((t) => (
               <Tooltip key={t.value}>
                 <TooltipTrigger asChild>
                   <Button
                     aria-label={t.label}
-                    className="rounded-sm"
+                    className="rounded-none border-y-0 border-r-0 border-l first:rounded-l-md last:rounded-r-md"
                     onClick={() => setTone(t.value)}
                     size="icon-xs"
                     variant={tone === t.value ? "default" : "outline"}
@@ -460,24 +441,11 @@ export default function TaskpanePage() {
       </div>
 
       {/* Generate button */}
-      <Button
-        className="mailai-generate-btn mt-1 mb-2 h-11 w-full rounded-md"
-        disabled={isGenerating}
-        onClick={generateReply}
-        size="default"
-      >
-        {isGenerating ? (
-          <>
-            <Loader2 className="animate-spin" />
-            Generating...
-          </>
-        ) : (
-          <>
-            <Sparkles />
-            Generate AI Reply
-          </>
-        )}
-      </Button>
+      <GenerateAiReplyButton
+        isGenerating={isGenerating}
+        onGenerate={generateReply}
+      />
+      <div className="mb-2 border-white/10 border-t" />
       {/* Additional context (collapsed by default) */}
       <div className="mb-3 px-1">
         <button
@@ -495,20 +463,15 @@ export default function TaskpanePage() {
           )}
         </button>
         {contextExpanded && (
-          <>
-            <div className="my-1">
-              <hr className="border-white/10" />
-            </div>
-            <textarea
-              className="mt-1 min-h-24 w-full resize-y rounded-md border border-input bg-transparent px-1.5 py-1 text-[11px] leading-snug outline-none placeholder:text-muted-foreground/70 focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30"
-              id="context-input"
-              onChange={(e) =>
-                setAdditionalContext((e.target as HTMLTextAreaElement).value)
-              }
-              placeholder="Optional: constraints, points to mention, or preferred phrasing..."
-              value={additionalContext}
-            />
-          </>
+          <textarea
+            className="mt-1 min-h-24 w-full resize-y rounded-md border border-input bg-transparent px-1.5 py-1 text-[11px] leading-snug outline-none placeholder:text-muted-foreground/70 focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30"
+            id="context-input"
+            onChange={(e) =>
+              setAdditionalContext((e.target as HTMLTextAreaElement).value)
+            }
+            placeholder="Optional: constraints, points to mention, or preferred phrasing..."
+            value={additionalContext}
+          />
         )}
       </div>
       {/* Error display */}
@@ -537,55 +500,48 @@ export default function TaskpanePage() {
           </button>
 
           {chainExpanded && (
-            <>
-              <div className="my-1">
-                <hr className="border-white/10" />
-              </div>
-              <div className="mt-2 max-h-56 space-y-1 overflow-y-auto pr-1">
-                {emailChain.messages.map((msg) => {
-                  const plain = msg.isHtml ? stripHtml(msg.body) : msg.body;
-                  const compact = compactChainBody(plain);
-                  const meta = extractChainMeta(compact);
-                  const primaryFrom = meta.from ?? msg.from;
-                  const dateText = meta.date;
-                  const subjectText = meta.subject;
-                  return (
-                    <div
-                      className="rounded-sm border border-white/10 bg-background/30 px-2 py-1.5"
-                      key={msg.id}
-                    >
-                      <div className="mb-1.5 rounded-sm border border-border/70 bg-muted/35 px-1.5 py-1 text-[10px] leading-snug">
-                        <div className="truncate text-foreground/90">
-                          <span className="text-muted-foreground/90">
-                            From:
+            <div className="mt-2 max-h-56 space-y-1 overflow-y-auto pr-1">
+              {emailChain.messages.map((msg) => {
+                const plain = msg.isHtml ? stripHtml(msg.body) : msg.body;
+                const compact = compactChainBody(plain);
+                const meta = extractChainMeta(compact);
+                const primaryFrom = meta.from ?? msg.from;
+                const dateText = meta.date;
+                const subjectText = meta.subject;
+                return (
+                  <div
+                    className="rounded-sm border border-white/10 bg-background/30 px-2 py-1.5"
+                    key={msg.id}
+                  >
+                    <div className="mb-1.5 rounded-sm border border-border/70 bg-muted/35 px-1.5 py-1 text-[10px] leading-snug">
+                      <div className="truncate text-foreground/90">
+                        <span className="text-muted-foreground/90">From:</span>{" "}
+                        <span className="font-medium">{primaryFrom}</span>
+                      </div>
+                      {dateText && (
+                        <div className="truncate text-muted-foreground/90">
+                          <span className="text-muted-foreground/80">
+                            Date:
                           </span>{" "}
-                          <span className="font-medium">{primaryFrom}</span>
+                          {dateText}
                         </div>
-                        {dateText && (
-                          <div className="truncate text-muted-foreground/90">
-                            <span className="text-muted-foreground/80">
-                              Date:
-                            </span>{" "}
-                            {dateText}
-                          </div>
-                        )}
-                        {subjectText && (
-                          <div className="truncate text-muted-foreground/90">
-                            <span className="text-muted-foreground/80">
-                              Subject:
-                            </span>{" "}
-                            {subjectText}
-                          </div>
-                        )}
-                      </div>
-                      <div className="whitespace-pre-wrap break-words text-[11px] leading-snug">
-                        {compact}
-                      </div>
+                      )}
+                      {subjectText && (
+                        <div className="truncate text-muted-foreground/90">
+                          <span className="text-muted-foreground/80">
+                            Subject:
+                          </span>{" "}
+                          {subjectText}
+                        </div>
+                      )}
                     </div>
-                  );
-                })}
-              </div>
-            </>
+                    <div className="wrap-break-word whitespace-pre-wrap text-[11px] leading-snug">
+                      {compact}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           )}
         </div>
       )}

@@ -1,13 +1,8 @@
 import type { EmailChain, EmailMessage, EmailProvider } from "@/lib/types";
 
 const MAILAI_REPLY_ATTR = 'data-mailai-reply="1"';
-const QUOTED_THREAD_MARKERS = [
-  /(?:^|>|\s)From:\s/i,
-  /On\s.+\swrote:/i,
-  /-{2,}\s*Forwarded message\s*-{2,}/i,
-  /Get\s+Outlook\s+for\s+Mac/i,
-  /<hr[\s>]/i,
-];
+const MAILAI_TEXT_START = "[[MAILAI_REPLY_START]]";
+const MAILAI_TEXT_END = "[[MAILAI_REPLY_END]]";
 
 /**
  * Outlook email provider using Office.js API.
@@ -195,9 +190,11 @@ export class OutlookProvider implements EmailProvider {
     item: Office.MessageCompose,
     text: string
   ): Promise<void> {
-    const getBody = (): Promise<string> =>
+    const getBody = (
+      coercionType: Office.CoercionType.Html | Office.CoercionType.Text
+    ): Promise<string> =>
       new Promise((resolve, reject) => {
-        item.body.getAsync(Office.CoercionType.Html, (result) => {
+        item.body.getAsync(coercionType, (result) => {
           if (result.status === Office.AsyncResultStatus.Succeeded) {
             resolve(result.value ?? "");
           } else {
@@ -208,22 +205,40 @@ export class OutlookProvider implements EmailProvider {
         });
       });
 
-    const setBody = (html: string): Promise<void> =>
+    const setBody = (
+      value: string,
+      coercionType: Office.CoercionType.Html | Office.CoercionType.Text
+    ): Promise<void> =>
       new Promise((resolve, reject) => {
-        item.body.setAsync(
-          html,
-          { coercionType: Office.CoercionType.Html },
-          (result) => {
-            if (result.status === Office.AsyncResultStatus.Succeeded) {
-              resolve();
-            } else {
-              reject(
-                new Error(`Failed to set draft body: ${result.error?.message}`)
-              );
-            }
+        item.body.setAsync(value, { coercionType }, (result) => {
+          if (result.status === Office.AsyncResultStatus.Succeeded) {
+            resolve();
+          } else {
+            reject(
+              new Error(`Failed to set draft body: ${result.error?.message}`)
+            );
           }
-        );
+        });
       });
+
+    const getBodyType = (): Promise<Office.CoercionType> =>
+      new Promise((resolve, reject) => {
+        item.body.getTypeAsync((result) => {
+          if (
+            result.status === Office.AsyncResultStatus.Succeeded &&
+            result.value
+          ) {
+            resolve(result.value);
+          } else {
+            reject(
+              new Error(`Failed to get body type: ${result.error?.message}`)
+            );
+          }
+        });
+      });
+
+    const bodyType = await getBodyType();
+    const isHtmlBody = bodyType === Office.CoercionType.Html;
 
     const escaped = text
       .replaceAll("&", "&amp;")
@@ -231,36 +246,35 @@ export class OutlookProvider implements EmailProvider {
       .replaceAll(">", "&gt;");
     const htmlReply = escaped.replaceAll("\n", "<br>");
     const wrapped = `<div ${MAILAI_REPLY_ATTR}>${htmlReply}</div>`;
+    const wrappedText = `${MAILAI_TEXT_START}\n${text}\n${MAILAI_TEXT_END}`;
 
-    const current = await getBody();
-    const blockPattern =
-      /<div[^>]*data-mailai-reply=(["'])1\1[^>]*>[\s\S]*?<\/div>/gi;
+    if (isHtmlBody) {
+      const current = await getBody(Office.CoercionType.Html);
+      const blockPattern =
+        /<div[^>]*data-mailai-reply=(["'])1\1[^>]*>[\s\S]*?<\/div>/gi;
 
-    const hasExistingBlock = blockPattern.test(current);
-    blockPattern.lastIndex = 0;
-    let next = hasExistingBlock
-      ? current.replace(blockPattern, wrapped)
-      : `${wrapped}<br><br>${current}`;
+      const hasExistingBlock = blockPattern.test(current);
+      blockPattern.lastIndex = 0;
+      // Only replace our own wrapper, or prepend above the full body. Do not slice by
+      // “thread markers” — that rewrites part of the quoted chain and can delete messages.
+      const next = hasExistingBlock
+        ? current.replace(blockPattern, wrapped)
+        : `${wrapped}<br><br>${current}`;
 
-    // Outlook can sanitize attributes; fallback to replacing the writable top
-    // section of the draft (before quoted thread markers), not appending forever.
-    if (!hasExistingBlock) {
-      let boundary = -1;
-      for (const marker of QUOTED_THREAD_MARKERS) {
-        const match = current.match(marker);
-        if (match?.index !== undefined) {
-          boundary =
-            boundary === -1 ? match.index : Math.min(boundary, match.index);
-        }
-      }
-
-      if (boundary > 0) {
-        const quotedThread = current.slice(boundary).trimStart();
-        next = `${wrapped}<br><br>${quotedThread}`;
-      }
+      await setBody(next, Office.CoercionType.Html);
+      return;
     }
 
-    await setBody(next);
+    const currentText = await getBody(Office.CoercionType.Text);
+    const textBlockPattern =
+      /\[\[MAILAI_REPLY_START\]\][\s\S]*?\[\[MAILAI_REPLY_END\]\]\n?/gi;
+    const hasTextBlock = textBlockPattern.test(currentText);
+    textBlockPattern.lastIndex = 0;
+    const nextText = hasTextBlock
+      ? currentText.replace(textBlockPattern, `${wrappedText}\n`)
+      : `${wrappedText}\n\n${currentText}`;
+
+    await setBody(nextText, Office.CoercionType.Text);
   }
 
   private insertIntoReadReply(text: string): Promise<void> {

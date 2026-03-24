@@ -20,6 +20,11 @@ export const metadata: Metadata = {
   title: "MailAI — Smart email assistant",
   description:
     "AI-powered email reply generation for Outlook and Gmail. Draft clear replies faster.",
+  icons: {
+    icon: [{ url: "/logo.png", type: "image/png" }],
+    apple: [{ url: "/logo.png", type: "image/png" }],
+    shortcut: "/logo.png",
+  },
 };
 
 export default function RootLayout({
