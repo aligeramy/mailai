@@ -11,10 +11,11 @@
   <Version>1.0.0.0</Version>
   <ProviderName>MailAI</ProviderName>
   <DefaultLocale>en-US</DefaultLocale>
-  <DisplayName DefaultValue="MailAI — Smart Email Assistant" />
+  <DisplayName DefaultValue="MailAI" />
   <Description DefaultValue="Draft replies with AI using the full conversation in the message. Works in read and compose. Requires your OpenAI API access." />
-  <IconUrl DefaultValue="https://localhost:3000/assets/icon-32.png" />
-  <HighResolutionIconUrl DefaultValue="https://localhost:3000/assets/icon-64.png" />
+  <!-- Outlook: IconUrl must be 64×64; HighResolutionIconUrl must be 128×128 (other Office apps use 32 and 64). -->
+  <IconUrl DefaultValue="https://localhost:3000/assets/icon-64.png" />
+  <HighResolutionIconUrl DefaultValue="https://localhost:3000/assets/icon-128.png" />
   <SupportUrl DefaultValue="https://example.com/mailai-support" />
 
   <AppDomains>
@@ -128,7 +129,7 @@
         <bt:Url id="Taskpane.Url" DefaultValue="https://localhost:3000/taskpane" />
       </bt:Urls>
       <bt:ShortStrings>
-        <bt:String id="GroupLabel" DefaultValue="AI Reply" />
+        <bt:String id="GroupLabel" DefaultValue="MailAI" />
         <bt:String id="TaskpaneButton.Label" DefaultValue="AI Reply" />
       </bt:ShortStrings>
       <bt:LongStrings>

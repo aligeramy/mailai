@@ -1,5 +1,6 @@
 import type {
   CorrespondentContextWindow,
+  CorrespondentHistoryProgress,
   EmailChain,
   EmailProvider,
 } from "@/lib/types";
@@ -39,7 +40,8 @@ export class GmailProvider implements EmailProvider {
   }
 
   fetchCorrespondentHistoryForPrompt(
-    _window: CorrespondentContextWindow
+    _window: CorrespondentContextWindow,
+    _onProgress?: (progress: CorrespondentHistoryProgress) => void
   ): Promise<string> {
     return Promise.resolve("");
   }

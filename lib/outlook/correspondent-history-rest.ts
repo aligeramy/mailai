@@ -1,4 +1,7 @@
-import type { CorrespondentContextWindow } from "@/lib/types";
+import type {
+  CorrespondentContextWindow,
+  CorrespondentHistoryProgress,
+} from "@/lib/types";
 
 const PAGE_SIZE = 50;
 const MAX_PAGES = 28;
@@ -39,12 +42,31 @@ function attachMailboxSearchHint(message: string): string {
   if (
     message.includes("-2147467259") ||
     message.includes("Internal protocol") ||
+    message.includes("9017") ||
     message.includes("9018") ||
     message.includes("9042")
   ) {
-    return `${message} — Mailbox history needs an Exchange / Microsoft 365 mailbox and ReadWriteMailbox in the manifest. It often fails for Gmail (or other IMAP) in Outlook for Mac; try Outlook on the web, the Windows client, or set History to Off.`;
+    return `${message}\n\nMailbox history needs Exchange / Microsoft 365 with ReadWriteMailbox in the manifest. Error 9017 and similar codes often appear for Gmail or other IMAP accounts in Outlook for Mac — Outlook on the web or Windows usually works. Choose History: Off to skip mailbox search.`;
   }
   return message;
+}
+
+/** True when the message is likely a host/account limitation, not a bug. */
+export function isRestMailboxHistoryUnsupportedMessage(
+  message: string
+): boolean {
+  return (
+    message.includes("9017") ||
+    message.includes("9018") ||
+    message.includes("9042") ||
+    message.includes("-2147467259") ||
+    message.includes("Internal protocol") ||
+    message.includes("Exchange / Microsoft 365")
+  );
+}
+
+export function restMailboxHistoryUserShortHint(): string {
+  return "Not available for this account in this Outlook client (common with Gmail/IMAP on Mac). Set History to Off, or use Outlook on the web / Windows with Microsoft 365.";
 }
 
 function saveComposeItemAsync(item: Office.MessageCompose): Promise<void> {
@@ -84,6 +106,7 @@ interface RestMessage {
   BodyPreview?: string;
   CcRecipients?: RestEmailAddress[];
   From?: RestEmailAddress;
+  Id?: string;
   ReceivedDateTime?: string;
   Subject?: string;
   ToRecipients?: RestEmailAddress[];
@@ -99,6 +122,89 @@ interface HistorySnippet {
   preview: string;
   subject: string;
   when: string;
+}
+
+interface HistoryTimeSegment {
+  fromInclusive: Date | null;
+  label: string;
+  toExclusive: Date | null;
+}
+
+/** UTC midnight `days` ago (consistent with prior single-window behavior). */
+function utcDaysAgo(days: number): Date {
+  const d = new Date();
+  d.setUTCDate(d.getUTCDate() - days);
+  d.setUTCHours(0, 0, 0, 0);
+  return d;
+}
+
+/**
+ * Load recent mail first, then older bands, so the model can use partial context early.
+ * 60/90d = consecutive 30-day bands; "all" = last 30d then everything older.
+ */
+function historyTimeSegments(
+  window: Exclude<CorrespondentContextWindow, "off">
+): HistoryTimeSegment[] {
+  if (window === "30") {
+    return [
+      {
+        label: "Last 30 days",
+        fromInclusive: utcDaysAgo(30),
+        toExclusive: null,
+      },
+    ];
+  }
+  if (window === "60") {
+    return [
+      {
+        label: "Last 30 days",
+        fromInclusive: utcDaysAgo(30),
+        toExclusive: null,
+      },
+      {
+        label: "Days 31–60",
+        fromInclusive: utcDaysAgo(60),
+        toExclusive: utcDaysAgo(30),
+      },
+    ];
+  }
+  if (window === "90") {
+    return [
+      {
+        label: "Last 30 days",
+        fromInclusive: utcDaysAgo(30),
+        toExclusive: null,
+      },
+      {
+        label: "Days 31–60",
+        fromInclusive: utcDaysAgo(60),
+        toExclusive: utcDaysAgo(30),
+      },
+      {
+        label: "Days 61–90",
+        fromInclusive: utcDaysAgo(90),
+        toExclusive: utcDaysAgo(60),
+      },
+    ];
+  }
+  return [
+    {
+      label: "Last 30 days",
+      fromInclusive: utcDaysAgo(30),
+      toExclusive: null,
+    },
+    {
+      label: "Older mail",
+      fromInclusive: null,
+      toExclusive: utcDaysAgo(30),
+    },
+  ];
+}
+
+export function correspondentHistoryPhaseLabels(
+  window: Exclude<CorrespondentContextWindow, "off">
+): string[] {
+  return historyTimeSegments(window).map((s) => s.label);
 }
 
 function messageInvolvesCounterparty(
@@ -123,22 +229,6 @@ function messageInvolvesCounterparty(
     }
   }
   return false;
-}
-
-function windowStartDate(
-  window: Exclude<CorrespondentContextWindow, "off">
-): Date | null {
-  if (window === "all") {
-    return null;
-  }
-  const days = Number.parseInt(window, 10);
-  if (!Number.isFinite(days)) {
-    return null;
-  }
-  const d = new Date();
-  d.setUTCDate(d.getUTCDate() - days);
-  d.setUTCHours(0, 0, 0, 0);
-  return d;
 }
 
 export async function resolveCounterpartyEmail(params: {
@@ -169,17 +259,27 @@ export async function resolveCounterpartyEmail(params: {
   return other ?? toList[0] ?? null;
 }
 
-/** Build query string for first Outlook REST Messages page */
-function buildMessagesQuery(startDate: Date | null, pageSize: number): string {
+function buildMessagesQuery(options: {
+  fromInclusive: Date | null;
+  pageSize: number;
+  toExclusive: Date | null;
+}): string {
   const params = new URLSearchParams();
   params.set(
     "$select",
-    "Subject,ReceivedDateTime,From,ToRecipients,CcRecipients,BodyPreview"
+    "Id,Subject,ReceivedDateTime,From,ToRecipients,CcRecipients,BodyPreview"
   );
   params.set("$orderby", "ReceivedDateTime desc");
-  params.set("$top", String(pageSize));
-  if (startDate) {
-    params.set("$filter", `ReceivedDateTime ge ${startDate.toISOString()}`);
+  params.set("$top", String(options.pageSize));
+  const filters: string[] = [];
+  if (options.fromInclusive) {
+    filters.push(`ReceivedDateTime ge ${options.fromInclusive.toISOString()}`);
+  }
+  if (options.toExclusive) {
+    filters.push(`ReceivedDateTime lt ${options.toExclusive.toISOString()}`);
+  }
+  if (filters.length > 0) {
+    params.set("$filter", filters.join(" and "));
   }
   return params.toString();
 }
@@ -206,9 +306,14 @@ async function fetchOutlookRestJson(
 function pushMatchingSnippetsFromBatch(
   batch: RestMessage[],
   counterparty: string,
-  collected: HistorySnippet[]
+  collected: HistorySnippet[],
+  seenIds: Set<string>
 ): void {
   for (const m of batch) {
+    const mid = m.Id?.trim();
+    if (mid && seenIds.has(mid)) {
+      continue;
+    }
     if (!messageInvolvesCounterparty(m, counterparty)) {
       continue;
     }
@@ -220,6 +325,9 @@ function pushMatchingSnippetsFromBatch(
       .replace(WHITESPACE_COLLAPSE_RE, " ")
       .trim()
       .slice(0, MAX_PREVIEW_CHARS);
+    if (mid) {
+      seenIds.add(mid);
+    }
     collected.push({
       subject,
       when,
@@ -251,11 +359,69 @@ function buildHistoryPromptBody(
   return body;
 }
 
+async function collectFromSegment(
+  base: string,
+  token: string,
+  segment: HistoryTimeSegment,
+  counterparty: string,
+  collected: HistorySnippet[],
+  seenIds: Set<string>,
+  pageBudget: { used: number }
+): Promise<void> {
+  const query = buildMessagesQuery({
+    fromInclusive: segment.fromInclusive,
+    toExclusive: segment.toExclusive,
+    pageSize: PAGE_SIZE,
+  });
+  let nextUrl: string | null = `${base}/Me/Messages?${query}`;
+
+  while (
+    nextUrl &&
+    collected.length < MAX_MATCHES &&
+    pageBudget.used < MAX_PAGES
+  ) {
+    pageBudget.used += 1;
+    const data = await fetchOutlookRestJson(nextUrl, token);
+    const batch = data.value ?? [];
+    pushMatchingSnippetsFromBatch(batch, counterparty, collected, seenIds);
+    nextUrl = data["@odata.nextLink"] ?? null;
+  }
+}
+
+function emitProgress(
+  onProgress: ((p: CorrespondentHistoryProgress) => void) | undefined,
+  args: {
+    activePhaseIndex: number;
+    collected: HistorySnippet[];
+    completedPhaseIndex: number;
+    counterparty: string;
+    isComplete: boolean;
+    totalPhases: number;
+    window: Exclude<CorrespondentContextWindow, "off">;
+  }
+): void {
+  if (!onProgress) {
+    return;
+  }
+  const cumulativeText =
+    args.collected.length === 0
+      ? ""
+      : buildHistoryPromptBody(args.counterparty, args.window, args.collected);
+  onProgress({
+    activePhaseIndex: args.activePhaseIndex,
+    completedPhaseIndex: args.completedPhaseIndex,
+    cumulativeText,
+    isComplete: args.isComplete,
+    totalPhases: args.totalPhases,
+  });
+}
+
 export async function fetchCorrespondentHistoryFromRest(params: {
-  mailbox: Office.Mailbox;
-  item: Office.MessageRead | Office.MessageCompose;
-  isComposeMode: boolean;
   currentUserEmail: string;
+  isComposeMode: boolean;
+  item: Office.MessageRead | Office.MessageCompose;
+  mailbox: Office.Mailbox;
+  onProgress?: (progress: CorrespondentHistoryProgress) => void;
   window: Exclude<CorrespondentContextWindow, "off">;
 }): Promise<string> {
   const counterparty = await resolveCounterpartyEmail({
@@ -294,20 +460,43 @@ export async function fetchCorrespondentHistoryFromRest(params: {
     );
   }
 
-  const start = windowStartDate(params.window);
-  const query = buildMessagesQuery(start, PAGE_SIZE);
-  let nextUrl: string | null = `${base}/Me/Messages?${query}`;
-
+  const segments = historyTimeSegments(params.window);
+  const totalPhases = segments.length;
   const collected: HistorySnippet[] = [];
+  const seenIds = new Set<string>();
+  const pageBudget = { used: 0 };
 
-  let pages = 0;
+  emitProgress(params.onProgress, {
+    activePhaseIndex: 0,
+    completedPhaseIndex: -1,
+    collected,
+    counterparty,
+    isComplete: false,
+    totalPhases,
+    window: params.window,
+  });
+
   try {
-    while (nextUrl && collected.length < MAX_MATCHES && pages < MAX_PAGES) {
-      pages += 1;
-      const data = await fetchOutlookRestJson(nextUrl, token);
-      const batch = data.value ?? [];
-      pushMatchingSnippetsFromBatch(batch, counterparty, collected);
-      nextUrl = data["@odata.nextLink"] ?? null;
+    for (let i = 0; i < segments.length; i++) {
+      await collectFromSegment(
+        base,
+        token,
+        segments[i],
+        counterparty,
+        collected,
+        seenIds,
+        pageBudget
+      );
+      const isLast = i === segments.length - 1;
+      emitProgress(params.onProgress, {
+        activePhaseIndex: isLast ? -1 : i + 1,
+        completedPhaseIndex: i,
+        collected,
+        counterparty,
+        isComplete: isLast,
+        totalPhases,
+        window: params.window,
+      });
     }
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);

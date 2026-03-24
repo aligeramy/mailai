@@ -17,7 +17,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "MailAI — Smart email assistant",
+  title: "MailAI",
   description:
     "AI-powered email reply generation for Outlook and Gmail. Draft clear replies faster.",
   icons: {

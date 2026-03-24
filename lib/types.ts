@@ -52,13 +52,29 @@ export interface GenerateReplyResult {
   tokensUsed: number;
 }
 
+/**
+ * Outlook REST mailbox history loads in phases (e.g. last 30d, then 31–60d) so UI
+ * can show progress and generation can use partial context as soon as the first phase completes.
+ */
+export interface CorrespondentHistoryProgress {
+  /** Phase currently being fetched, or -1 when idle / all done. */
+  activePhaseIndex: number;
+  /** Highest phase index that has fully completed, or -1 if none yet. */
+  completedPhaseIndex: number;
+  cumulativeText: string;
+  isComplete: boolean;
+  totalPhases: number;
+}
+
 /** Abstracted email provider interface - enables Gmail, Outlook, etc. */
 export interface EmailProvider {
   /**
    * Outlook: fetch other messages with this contact for briefing text. Non-Outlook: "".
+   * When `onProgress` is provided, Outlook loads recent windows first and appends older ranges.
    */
   fetchCorrespondentHistoryForPrompt(
-    window: CorrespondentContextWindow
+    window: CorrespondentContextWindow,
+    onProgress?: (progress: CorrespondentHistoryProgress) => void
   ): Promise<string>;
   /** Get the current user's email address */
   getCurrentUserEmail(): Promise<string>;

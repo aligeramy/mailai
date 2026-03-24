@@ -1,6 +1,7 @@
 import { fetchCorrespondentHistoryFromRest } from "@/lib/outlook/correspondent-history-rest";
 import type {
   CorrespondentContextWindow,
+  CorrespondentHistoryProgress,
   EmailChain,
   EmailMessage,
   EmailProvider,
@@ -52,7 +53,8 @@ export class OutlookProvider implements EmailProvider {
   }
 
   async fetchCorrespondentHistoryForPrompt(
-    window: CorrespondentContextWindow
+    window: CorrespondentContextWindow,
+    onProgress?: (progress: CorrespondentHistoryProgress) => void
   ): Promise<string> {
     if (window === "off") {
       return "";
@@ -64,10 +66,11 @@ export class OutlookProvider implements EmailProvider {
     const item = this.getItem();
     const currentUserEmail = await this.getCurrentUserEmail();
     return await fetchCorrespondentHistoryFromRest({
-      mailbox,
-      item,
-      isComposeMode: this.isComposeMode(),
       currentUserEmail,
+      isComposeMode: this.isComposeMode(),
+      item,
+      mailbox,
+      onProgress,
       window,
     });
   }
