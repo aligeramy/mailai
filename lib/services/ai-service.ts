@@ -74,6 +74,44 @@ export function formatEmailChain(options: GenerateReplyOptions): string {
   return prompt;
 }
 
+const CORRESPONDENT_COMPRESS_MIN_CHARS = 900;
+
+/** Append broader mailbox context (already trimmed / bounded on the client). */
+export function appendCorrespondentHistoryToPrompt(
+  basePrompt: string,
+  correspondentHistoryBrief: string
+): string {
+  const trimmed = correspondentHistoryBrief.trim();
+  if (!trimmed) {
+    return basePrompt;
+  }
+  return `${basePrompt}\n\n## Broader correspondence with this contact (from your mailbox; use for continuity and facts only)\n${trimmed}\n\nAnchor the reply to the latest thread above; treat this section as background, not as the message to answer directly.`;
+}
+
+export async function compressCorrespondentHistoryForReply(
+  client: OpenAI,
+  model: string,
+  raw: string,
+  supportsTemperature: boolean
+): Promise<string> {
+  const completion = await client.chat.completions.create({
+    model,
+    messages: [
+      {
+        role: "system",
+        content:
+          "You prepare context for an email-reply model. Compress the excerpts into a tight briefing: standing topics, decisions, dates, commitments, how this person writes, and recurring asks. Bullet points. Max ~900 words. Facts only—no draft reply, no subject lines as tasks.",
+      },
+      { role: "user", content: raw.slice(0, 120_000) },
+    ],
+    max_completion_tokens: 1600,
+    ...(supportsTemperature ? { temperature: 0.35 } : {}),
+  });
+
+  const text = completion.choices[0]?.message?.content?.trim();
+  return text && text.length > 0 ? text : raw.slice(0, 8000);
+}
+
 /** OpenAI implementation of the AI service */
 export class OpenAIService implements AIService {
   private readonly client: OpenAI;
@@ -101,7 +139,24 @@ export class OpenAIService implements AIService {
   ): Promise<GenerateReplyResult> {
     const resolvedLength = options.length ?? "normal";
     const systemPrompt = buildSystemPrompt(options.tone, resolvedLength);
-    const userPrompt = formatEmailChain(options);
+    let userPrompt = formatEmailChain(options);
+
+    const rawHistory = options.correspondentHistoryRaw?.trim() ?? "";
+    if (rawHistory.length > 0) {
+      const supportsTemperature = !MODEL_USES_FIXED_SAMPLING_RE.test(
+        this.model
+      );
+      const brief =
+        rawHistory.length >= CORRESPONDENT_COMPRESS_MIN_CHARS
+          ? await compressCorrespondentHistoryForReply(
+              this.client,
+              this.model,
+              rawHistory,
+              supportsTemperature
+            )
+          : rawHistory;
+      userPrompt = appendCorrespondentHistoryToPrompt(userPrompt, brief);
+    }
 
     const maxOut =
       options.maxTokens ?? LENGTH_MAX_TOKENS[resolvedLength] ?? 520;

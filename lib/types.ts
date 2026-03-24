@@ -28,9 +28,17 @@ export type ReplyTone =
 /** Length options for reply generation */
 export type ReplyLength = "quick" | "short" | "normal" | "long";
 
+/**
+ * How far back to pull mailbox messages with this contact for extra model context.
+ * Requires Outlook REST (ReadWriteMailbox). "off" skips the fetch.
+ */
+export type CorrespondentContextWindow = "off" | "30" | "60" | "90" | "all";
+
 /** Options for generating a reply */
 export interface GenerateReplyOptions {
   additionalContext?: string;
+  /** Past messages with the contact (from client); compressed in the API when large */
+  correspondentHistoryRaw?: string;
   emailChain: EmailChain;
   length?: ReplyLength;
   maxTokens?: number;
@@ -46,6 +54,12 @@ export interface GenerateReplyResult {
 
 /** Abstracted email provider interface - enables Gmail, Outlook, etc. */
 export interface EmailProvider {
+  /**
+   * Outlook: fetch other messages with this contact for briefing text. Non-Outlook: "".
+   */
+  fetchCorrespondentHistoryForPrompt(
+    window: CorrespondentContextWindow
+  ): Promise<string>;
   /** Get the current user's email address */
   getCurrentUserEmail(): Promise<string>;
   /** Get the current email chain from the email client */

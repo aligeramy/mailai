@@ -36,7 +36,12 @@ import {
 } from "@/components/ui/tooltip";
 import { stripHtml } from "@/lib/email/html";
 import { createEmailProvider } from "@/lib/providers/create-email-provider";
-import type { EmailChain, ReplyLength, ReplyTone } from "@/lib/types";
+import type {
+  CorrespondentContextWindow,
+  EmailChain,
+  ReplyLength,
+  ReplyTone,
+} from "@/lib/types";
 
 const TONES: { value: ReplyTone; label: string }[] = [
   { value: "professional", label: "Professional" },
@@ -51,6 +56,54 @@ const LENGTHS: { value: ReplyLength; label: string }[] = [
   { value: "normal", label: "Normal" },
   { value: "long", label: "Long" },
 ];
+
+const CORRESPONDENT_CONTEXT_OPTIONS: {
+  value: CorrespondentContextWindow;
+  label: string;
+  tooltip: string;
+}[] = [
+  {
+    value: "off",
+    label: "Off",
+    tooltip: "Current thread only — no extra mailbox search.",
+  },
+  {
+    value: "30",
+    label: "30d",
+    tooltip: "Include other messages with this contact from the last 30 days.",
+  },
+  {
+    value: "60",
+    label: "60d",
+    tooltip: "Include other messages with this contact from the last 60 days.",
+  },
+  {
+    value: "90",
+    label: "90d",
+    tooltip: "Include other messages with this contact from the last 90 days.",
+  },
+  {
+    value: "all",
+    label: "All",
+    tooltip:
+      "Search more of your mailbox for messages with this contact (capped for safety).",
+  },
+];
+
+async function fetchOptionalCorrespondentHistory(
+  window: CorrespondentContextWindow
+): Promise<string | undefined> {
+  if (window === "off") {
+    return;
+  }
+  if (typeof Office === "undefined" || !Office.context?.mailbox?.item) {
+    return;
+  }
+  const provider = createEmailProvider("outlook");
+  const raw = await provider.fetchCorrespondentHistoryForPrompt(window);
+  const trimmed = raw.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+}
 
 type ViewState = "main" | "settings";
 type ChainMeta = {
@@ -138,6 +191,8 @@ export default function TaskpanePage() {
   const [view, setView] = useState<ViewState>("main");
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [toastVisible, setToastVisible] = useState(false);
+  const [correspondentContext, setCorrespondentContext] =
+    useState<CorrespondentContextWindow>("off");
 
   const loadEmailChain = useCallback(async () => {
     try {
@@ -230,7 +285,34 @@ export default function TaskpanePage() {
         messages: chainToUse.messages.length,
         tone,
         length,
+        correspondentContext,
       });
+
+      let correspondentHistoryRaw: string | undefined;
+      let historySideNote: string | undefined;
+      if (correspondentContext !== "off") {
+        try {
+          correspondentHistoryRaw =
+            await fetchOptionalCorrespondentHistory(correspondentContext);
+          console.info("[mailai/taskpane] mailbox history fetch", {
+            window: correspondentContext,
+            charCount: correspondentHistoryRaw?.length ?? 0,
+          });
+          if (!correspondentHistoryRaw) {
+            historySideNote =
+              "Mailbox history: no other messages matched (check range, To address, and manifest ReadWriteMailbox).";
+          }
+        } catch (histErr) {
+          console.warn(
+            "[mailai/taskpane] correspondent history failed",
+            histErr
+          );
+          historySideNote =
+            histErr instanceof Error
+              ? `Mailbox history failed: ${histErr.message}`
+              : "Mailbox history failed.";
+        }
+      }
 
       const response = await fetch("/api/generate-reply", {
         method: "POST",
@@ -240,6 +322,7 @@ export default function TaskpanePage() {
           tone,
           length,
           additionalContext: additionalContext || undefined,
+          ...(correspondentHistoryRaw ? { correspondentHistoryRaw } : {}),
           ...(apiKey.trim() ? { apiKey: apiKey.trim() } : {}),
         }),
       });
@@ -260,10 +343,12 @@ export default function TaskpanePage() {
       if (typeof Office !== "undefined" && Office.context?.mailbox?.item) {
         const provider = createEmailProvider("outlook");
         await provider.insertReply(data.reply);
-        setToastMessage("Reply inserted into message body.");
+        const base = "Reply inserted into message body.";
+        setToastMessage(historySideNote ? `${base} ${historySideNote}` : base);
         setToastVisible(true);
       } else {
-        setToastMessage("Generated reply (Outlook not detected).");
+        const base = "Generated reply (Outlook not detected).";
+        setToastMessage(historySideNote ? `${base} ${historySideNote}` : base);
         setToastVisible(true);
       }
     } catch (err) {
@@ -434,6 +519,46 @@ export default function TaskpanePage() {
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>{t.label}</TooltipContent>
+              </Tooltip>
+            ))}
+          </div>
+        </TooltipProvider>
+      </div>
+
+      {/* Correspondent mailbox context (Outlook REST); tooltips on each option */}
+      <div className="mb-3 flex items-center justify-between gap-3 px-1">
+        <div className="flex min-w-0 items-center gap-1.5">
+          <label
+            className="font-medium text-sm"
+            htmlFor="correspondent-context-group"
+          >
+            History
+          </label>
+        </div>
+        <TooltipProvider>
+          <div
+            className="inline-flex max-w-[min(100%,220px)] flex-wrap justify-end gap-0 overflow-hidden rounded-md border border-white/10 bg-background/40 sm:max-w-none sm:flex-nowrap"
+            id="correspondent-context-group"
+            role="group"
+          >
+            {CORRESPONDENT_CONTEXT_OPTIONS.map((opt) => (
+              <Tooltip key={opt.value}>
+                <TooltipTrigger asChild>
+                  <Button
+                    aria-label={opt.tooltip}
+                    className="h-7 min-w-8 rounded-none border-y-0 border-r-0 border-l px-2 text-[10px] first:rounded-l-md last:rounded-r-md"
+                    onClick={() => setCorrespondentContext(opt.value)}
+                    size="sm"
+                    variant={
+                      correspondentContext === opt.value ? "default" : "outline"
+                    }
+                  >
+                    <span className="font-medium tabular-nums">
+                      {opt.label}
+                    </span>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">{opt.tooltip}</TooltipContent>
               </Tooltip>
             ))}
           </div>

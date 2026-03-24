@@ -1,4 +1,8 @@
-import type { EmailChain, EmailProvider } from "@/lib/types";
+import type {
+  CorrespondentContextWindow,
+  EmailChain,
+  EmailProvider,
+} from "@/lib/types";
 
 /**
  * Gmail email provider stub.
@@ -32,5 +36,11 @@ export class GmailProvider implements EmailProvider {
 
   isComposeMode(): boolean {
     return false;
+  }
+
+  fetchCorrespondentHistoryForPrompt(
+    _window: CorrespondentContextWindow
+  ): Promise<string> {
+    return Promise.resolve("");
   }
 }

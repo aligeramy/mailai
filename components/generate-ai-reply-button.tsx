@@ -28,7 +28,7 @@ export function GenerateAiReplyButton({
     return (
       <Button
         aria-busy
-        className="mailai-generate-btn mt-1 mb-2 h-11 w-full rounded-full"
+        className="mailai-generate-btn mt-1 mb-2 h-11 w-full rounded-md"
         disabled
         size="default"
       >
@@ -41,7 +41,7 @@ export function GenerateAiReplyButton({
   return (
     <Button
       className={cn(
-        "mailai-generate-btn group/gen relative mt-1 mb-2 h-11 w-full overflow-hidden rounded-full",
+        "mailai-generate-btn group/gen relative mt-1 mb-2 h-11 w-full overflow-hidden rounded-lg",
         "bg-primary text-primary-foreground"
       )}
       onClick={onGenerate}

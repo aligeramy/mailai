@@ -1,4 +1,10 @@
-import type { EmailChain, EmailMessage, EmailProvider } from "@/lib/types";
+import { fetchCorrespondentHistoryFromRest } from "@/lib/outlook/correspondent-history-rest";
+import type {
+  CorrespondentContextWindow,
+  EmailChain,
+  EmailMessage,
+  EmailProvider,
+} from "@/lib/types";
 
 const MAILAI_REPLY_ATTR = 'data-mailai-reply="1"';
 const MAILAI_TEXT_START = "[[MAILAI_REPLY_START]]";
@@ -43,6 +49,27 @@ export class OutlookProvider implements EmailProvider {
     return Promise.resolve(
       mailbox.userProfile?.emailAddress ?? "user@example.com"
     );
+  }
+
+  async fetchCorrespondentHistoryForPrompt(
+    window: CorrespondentContextWindow
+  ): Promise<string> {
+    if (window === "off") {
+      return "";
+    }
+    if (!this.office?.context?.mailbox?.item) {
+      return "";
+    }
+    const mailbox = this.getMailbox();
+    const item = this.getItem();
+    const currentUserEmail = await this.getCurrentUserEmail();
+    return await fetchCorrespondentHistoryFromRest({
+      mailbox,
+      item,
+      isComposeMode: this.isComposeMode(),
+      currentUserEmail,
+      window,
+    });
   }
 
   async getEmailChain(): Promise<EmailChain> {

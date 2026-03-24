@@ -13,8 +13,8 @@
   <DefaultLocale>en-US</DefaultLocale>
   <DisplayName DefaultValue="MailAI — Smart Email Assistant" />
   <Description DefaultValue="Draft replies with AI using the full conversation in the message. Works in read and compose. Requires your OpenAI API access." />
-  <IconUrl DefaultValue="https://localhost:3000/logo.png" />
-  <HighResolutionIconUrl DefaultValue="https://localhost:3000/logo.png" />
+  <IconUrl DefaultValue="https://localhost:3000/assets/icon-32.png" />
+  <HighResolutionIconUrl DefaultValue="https://localhost:3000/assets/icon-64.png" />
   <SupportUrl DefaultValue="https://example.com/mailai-support" />
 
   <AppDomains>
@@ -45,7 +45,8 @@
     </Form>
   </FormSettings>
 
-  <Permissions>ReadWriteItem</Permissions>
+  <!-- ReadWriteMailbox: required to read past messages with the contact via Outlook REST -->
+  <Permissions>ReadWriteMailbox</Permissions>
 
   <Rule xsi:type="RuleCollection" Mode="Or">
     <Rule xsi:type="ItemIs" ItemType="Message" FormType="Read" />
@@ -119,15 +120,15 @@
 
     <Resources>
       <bt:Images>
-        <bt:Image id="Icon.16x16" DefaultValue="https://localhost:3000/logo.png" />
-        <bt:Image id="Icon.32x32" DefaultValue="https://localhost:3000/logo.png" />
-        <bt:Image id="Icon.80x80" DefaultValue="https://localhost:3000/logo.png" />
+        <bt:Image id="Icon.16x16" DefaultValue="https://localhost:3000/assets/icon-16.png" />
+        <bt:Image id="Icon.32x32" DefaultValue="https://localhost:3000/assets/icon-32.png" />
+        <bt:Image id="Icon.80x80" DefaultValue="https://localhost:3000/assets/icon-80.png" />
       </bt:Images>
       <bt:Urls>
         <bt:Url id="Taskpane.Url" DefaultValue="https://localhost:3000/taskpane" />
       </bt:Urls>
       <bt:ShortStrings>
-        <bt:String id="GroupLabel" DefaultValue="MailAI" />
+        <bt:String id="GroupLabel" DefaultValue="AI Reply" />
         <bt:String id="TaskpaneButton.Label" DefaultValue="AI Reply" />
       </bt:ShortStrings>
       <bt:LongStrings>
