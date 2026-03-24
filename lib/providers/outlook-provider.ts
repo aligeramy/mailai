@@ -1,7 +1,13 @@
 import type { EmailChain, EmailMessage, EmailProvider } from "@/lib/types";
 
-const MAILAI_BLOCK_START = "<!-- MAILAI_REPLY_START -->";
-const MAILAI_BLOCK_END = "<!-- MAILAI_REPLY_END -->";
+const MAILAI_REPLY_ATTR = 'data-mailai-reply="1"';
+const QUOTED_THREAD_MARKERS = [
+  /(?:^|>|\s)From:\s/i,
+  /On\s.+\swrote:/i,
+  /-{2,}\s*Forwarded message\s*-{2,}/i,
+  /Get\s+Outlook\s+for\s+Mac/i,
+  /<hr[\s>]/i,
+];
 
 /**
  * Outlook email provider using Office.js API.
@@ -224,16 +230,35 @@ export class OutlookProvider implements EmailProvider {
       .replaceAll("<", "&lt;")
       .replaceAll(">", "&gt;");
     const htmlReply = escaped.replaceAll("\n", "<br>");
-    const wrapped = `${MAILAI_BLOCK_START}<div>${htmlReply}</div>${MAILAI_BLOCK_END}`;
+    const wrapped = `<div ${MAILAI_REPLY_ATTR}>${htmlReply}</div>`;
 
     const current = await getBody();
-    const blockPattern = new RegExp(
-      `${MAILAI_BLOCK_START}[\\s\\S]*?${MAILAI_BLOCK_END}`,
-      "i"
-    );
-    const next = blockPattern.test(current)
+    const blockPattern =
+      /<div[^>]*data-mailai-reply=(["'])1\1[^>]*>[\s\S]*?<\/div>/gi;
+
+    const hasExistingBlock = blockPattern.test(current);
+    blockPattern.lastIndex = 0;
+    let next = hasExistingBlock
       ? current.replace(blockPattern, wrapped)
       : `${wrapped}<br><br>${current}`;
+
+    // Outlook can sanitize attributes; fallback to replacing the writable top
+    // section of the draft (before quoted thread markers), not appending forever.
+    if (!hasExistingBlock) {
+      let boundary = -1;
+      for (const marker of QUOTED_THREAD_MARKERS) {
+        const match = current.match(marker);
+        if (match?.index !== undefined) {
+          boundary =
+            boundary === -1 ? match.index : Math.min(boundary, match.index);
+        }
+      }
+
+      if (boundary > 0) {
+        const quotedThread = current.slice(boundary).trimStart();
+        next = `${wrapped}<br><br>${quotedThread}`;
+      }
+    }
 
     await setBody(next);
   }

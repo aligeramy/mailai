@@ -3,6 +3,8 @@
 import {
   BotMessageSquare,
   Briefcase,
+  ChevronDown,
+  ChevronRight,
   Gauge,
   Handshake,
   Key,
@@ -34,6 +36,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { stripHtml } from "@/lib/email/html";
 import { createEmailProvider } from "@/lib/providers/create-email-provider";
 import type { EmailChain, ReplyLength, ReplyTone } from "@/lib/types";
 
@@ -52,6 +55,11 @@ const LENGTHS: { value: ReplyLength; label: string }[] = [
 ];
 
 type ViewState = "main" | "settings";
+type ChainMeta = {
+  date?: string;
+  from?: string;
+  subject?: string;
+};
 
 function taskpaneSubtitle(officeReady: boolean, composeMode: boolean): string {
   if (!officeReady) {
@@ -92,6 +100,41 @@ function lengthIcon(length: ReplyLength): ReactElement {
   return <Turtle className="size-3.5" />;
 }
 
+function extractChainMeta(text: string): ChainMeta {
+  const from = text.match(/(?:^|\n)From:\s*(.+)/i)?.[1]?.trim();
+  const date = text.match(/(?:^|\n)(?:Date|Sent):\s*(.+)/i)?.[1]?.trim();
+  const subject = text.match(/(?:^|\n)Subject:\s*(.+)/i)?.[1]?.trim();
+  return { from, date, subject };
+}
+
+function compactChainBody(input: string): string {
+  const droppedLinePatterns = [
+    /^Get\s+Outlook/i,
+    /^Renew now$/i,
+    /^Sign In\|/i,
+    /^All the best,?$/i,
+    /^Dynadot$/i,
+    /^EXPIRING IN/i,
+    /^Total price to renew:/i,
+    /^\*The price quoted above/i,
+  ];
+
+  const lines = input.replace(/\r\n/g, "\n").split("\n");
+  const filtered = lines.filter((line) => {
+    const trimmed = line.trim();
+    if (!trimmed) {
+      return true;
+    }
+    return !droppedLinePatterns.some((pattern) => pattern.test(trimmed));
+  });
+
+  return filtered
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .replace(/[ \t]{2,}/g, " ")
+    .trim();
+}
+
 export default function TaskpanePage() {
   const [officeReady, setOfficeReady] = useState(false);
   const [officeInitFailed, setOfficeInitFailed] = useState(false);
@@ -101,6 +144,8 @@ export default function TaskpanePage() {
   const [tone, setTone] = useState<ReplyTone>("professional");
   const [length, setLength] = useState<ReplyLength>("normal");
   const [additionalContext, setAdditionalContext] = useState("");
+  const [contextExpanded, setContextExpanded] = useState(false);
+  const [chainExpanded, setChainExpanded] = useState(false);
   const [apiKey, setApiKey] = useState("");
   const [view, setView] = useState<ViewState>("main");
   const [composeMode, setComposeMode] = useState(false);
@@ -416,7 +461,7 @@ export default function TaskpanePage() {
 
       {/* Generate button */}
       <Button
-        className="mailai-generate-btn mb-2 h-11 w-full rounded-md"
+        className="mailai-generate-btn mt-1 mb-2 h-11 w-full rounded-md"
         disabled={isGenerating}
         onClick={generateReply}
         size="default"
@@ -429,27 +474,42 @@ export default function TaskpanePage() {
         ) : (
           <>
             <Sparkles />
-            Generate AI Reply to Body
+            Generate AI Reply
           </>
         )}
       </Button>
-      {/* Additional context */}
-      <div className="mb-3 space-y-1.5 px-1">
-        <label
-          className="font-medium text-[11px] text-muted-foreground uppercase tracking-wide"
-          htmlFor="context-input"
+      {/* Additional context (collapsed by default) */}
+      <div className="mb-3 px-1">
+        <button
+          className="flex w-full items-center justify-between rounded-md px-1 py-1"
+          onClick={() => setContextExpanded((prev) => !prev)}
+          type="button"
         >
-          Additional context
-        </label>
-        <Input
-          className="h-11 rounded-md text-sm"
-          id="context-input"
-          onChange={(e) =>
-            setAdditionalContext((e.target as HTMLInputElement).value)
-          }
-          placeholder="Optional: constraints, points to mention, or preferred phrasing..."
-          value={additionalContext}
-        />
+          <span className="font-medium text-[11px] text-muted-foreground uppercase tracking-wide">
+            Additional context
+          </span>
+          {contextExpanded ? (
+            <ChevronDown className="size-4 text-muted-foreground" />
+          ) : (
+            <ChevronRight className="size-4 text-muted-foreground" />
+          )}
+        </button>
+        {contextExpanded && (
+          <>
+            <div className="my-1">
+              <hr className="border-white/10" />
+            </div>
+            <textarea
+              className="mt-1 min-h-24 w-full resize-y rounded-md border border-input bg-transparent px-1.5 py-1 text-[11px] leading-snug outline-none placeholder:text-muted-foreground/70 focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30"
+              id="context-input"
+              onChange={(e) =>
+                setAdditionalContext((e.target as HTMLTextAreaElement).value)
+              }
+              placeholder="Optional: constraints, points to mention, or preferred phrasing..."
+              value={additionalContext}
+            />
+          </>
+        )}
       </div>
       {/* Error display */}
       {error && (
@@ -460,24 +520,74 @@ export default function TaskpanePage() {
 
       {/* Email chain preview */}
       {emailChain && (
-        <details className="mt-2 rounded-md border p-3">
-          <summary className="cursor-pointer font-medium text-muted-foreground text-xs">
-            Email Chain ({emailChain.messages.length} messages)
-          </summary>
-          <div className="mt-2 max-h-40 space-y-2 overflow-y-auto">
-            {emailChain.messages.map((msg) => (
-              <div
-                className="rounded border bg-muted/30 p-2 text-xs"
-                key={msg.id}
-              >
-                <div className="font-medium">{msg.from}</div>
-                <div className="line-clamp-2 text-muted-foreground">
-                  {msg.body.slice(0, 150)}...
-                </div>
+        <div className="mt-1 px-1">
+          <button
+            className="flex w-full items-center justify-between rounded-md px-1 py-1"
+            onClick={() => setChainExpanded((prev) => !prev)}
+            type="button"
+          >
+            <span className="font-medium text-[11px] text-muted-foreground uppercase tracking-wide">
+              Email chain ({emailChain.messages.length})
+            </span>
+            {chainExpanded ? (
+              <ChevronDown className="size-4 text-muted-foreground" />
+            ) : (
+              <ChevronRight className="size-4 text-muted-foreground" />
+            )}
+          </button>
+
+          {chainExpanded && (
+            <>
+              <div className="my-1">
+                <hr className="border-white/10" />
               </div>
-            ))}
-          </div>
-        </details>
+              <div className="mt-2 max-h-56 space-y-1 overflow-y-auto pr-1">
+                {emailChain.messages.map((msg) => {
+                  const plain = msg.isHtml ? stripHtml(msg.body) : msg.body;
+                  const compact = compactChainBody(plain);
+                  const meta = extractChainMeta(compact);
+                  const primaryFrom = meta.from ?? msg.from;
+                  const dateText = meta.date;
+                  const subjectText = meta.subject;
+                  return (
+                    <div
+                      className="rounded-sm border border-white/10 bg-background/30 px-2 py-1.5"
+                      key={msg.id}
+                    >
+                      <div className="mb-1.5 rounded-sm border border-border/70 bg-muted/35 px-1.5 py-1 text-[10px] leading-snug">
+                        <div className="truncate text-foreground/90">
+                          <span className="text-muted-foreground/90">
+                            From:
+                          </span>{" "}
+                          <span className="font-medium">{primaryFrom}</span>
+                        </div>
+                        {dateText && (
+                          <div className="truncate text-muted-foreground/90">
+                            <span className="text-muted-foreground/80">
+                              Date:
+                            </span>{" "}
+                            {dateText}
+                          </div>
+                        )}
+                        {subjectText && (
+                          <div className="truncate text-muted-foreground/90">
+                            <span className="text-muted-foreground/80">
+                              Subject:
+                            </span>{" "}
+                            {subjectText}
+                          </div>
+                        )}
+                      </div>
+                      <div className="whitespace-pre-wrap break-words text-[11px] leading-snug">
+                        {compact}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          )}
+        </div>
       )}
 
       {/* Bottom fixed toast (sonner-style lightweight) */}
