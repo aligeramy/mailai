@@ -1,5 +1,7 @@
-import { parseOutlookThreadFromHtml } from "@/lib/email/parse-outlook-thread";
 import type { EmailChain, EmailMessage, EmailProvider } from "@/lib/types";
+
+const MAILAI_BLOCK_START = "<!-- MAILAI_REPLY_START -->";
+const MAILAI_BLOCK_END = "<!-- MAILAI_REPLY_END -->";
 
 /**
  * Outlook email provider using Office.js API.
@@ -72,17 +74,6 @@ export class OutlookProvider implements EmailProvider {
       (r: Office.EmailAddressDetails) => r.emailAddress
     );
 
-    const thread = parseOutlookThreadFromHtml(
-      body,
-      subject,
-      from,
-      currentUserEmail
-    );
-
-    if (thread.length > 0) {
-      return { messages: thread, subject, currentUserEmail };
-    }
-
     const currentMessage: EmailMessage = {
       id: item.itemId ?? "current",
       from,
@@ -121,28 +112,18 @@ export class OutlookProvider implements EmailProvider {
 
     const fromAddr = await this.getComposeFromAddressAsync(item);
 
-    const thread = parseOutlookThreadFromHtml(
-      body,
-      subject,
-      fromAddr,
-      currentUserEmail
-    );
-
     return {
-      messages:
-        thread.length > 0
-          ? thread
-          : [
-              {
-                id: "compose-draft",
-                from: fromAddr,
-                to: [currentUserEmail],
-                subject,
-                body,
-                timestamp: new Date(),
-                isHtml: true,
-              },
-            ],
+      messages: [
+        {
+          id: "compose-draft",
+          from: fromAddr,
+          to: [currentUserEmail],
+          subject,
+          body,
+          timestamp: new Date(),
+          isHtml: true,
+        },
+      ],
       subject,
       currentUserEmail,
     };
@@ -208,42 +189,53 @@ export class OutlookProvider implements EmailProvider {
     item: Office.MessageCompose,
     text: string
   ): Promise<void> {
-    const insertAtSelection = (): Promise<void> =>
+    const getBody = (): Promise<string> =>
       new Promise((resolve, reject) => {
-        item.body.setSelectedDataAsync(
-          text,
-          { coercionType: Office.CoercionType.Text },
+        item.body.getAsync(Office.CoercionType.Html, (result) => {
+          if (result.status === Office.AsyncResultStatus.Succeeded) {
+            resolve(result.value ?? "");
+          } else {
+            reject(
+              new Error(`Failed to read draft body: ${result.error?.message}`)
+            );
+          }
+        });
+      });
+
+    const setBody = (html: string): Promise<void> =>
+      new Promise((resolve, reject) => {
+        item.body.setAsync(
+          html,
+          { coercionType: Office.CoercionType.Html },
           (result) => {
             if (result.status === Office.AsyncResultStatus.Succeeded) {
               resolve();
             } else {
               reject(
-                new Error(`Failed to insert reply: ${result.error?.message}`)
+                new Error(`Failed to set draft body: ${result.error?.message}`)
               );
             }
           }
         );
       });
 
-    try {
-      await insertAtSelection();
-    } catch {
-      await new Promise<void>((resolve, reject) => {
-        item.body.prependAsync(
-          `${text}\n\n`,
-          { coercionType: Office.CoercionType.Text },
-          (result) => {
-            if (result.status === Office.AsyncResultStatus.Succeeded) {
-              resolve();
-            } else {
-              reject(
-                new Error(`Failed to prepend reply: ${result.error?.message}`)
-              );
-            }
-          }
-        );
-      });
-    }
+    const escaped = text
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;");
+    const htmlReply = escaped.replaceAll("\n", "<br>");
+    const wrapped = `${MAILAI_BLOCK_START}<div>${htmlReply}</div>${MAILAI_BLOCK_END}`;
+
+    const current = await getBody();
+    const blockPattern = new RegExp(
+      `${MAILAI_BLOCK_START}[\\s\\S]*?${MAILAI_BLOCK_END}`,
+      "i"
+    );
+    const next = blockPattern.test(current)
+      ? current.replace(blockPattern, wrapped)
+      : `${wrapped}<br><br>${current}`;
+
+    await setBody(next);
   }
 
   private insertIntoReadReply(text: string): Promise<void> {

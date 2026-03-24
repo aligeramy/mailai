@@ -25,10 +25,14 @@ export type ReplyTone =
   | "formal"
   | "casual";
 
+/** Length options for reply generation */
+export type ReplyLength = "quick" | "short" | "normal" | "long";
+
 /** Options for generating a reply */
 export interface GenerateReplyOptions {
   additionalContext?: string;
   emailChain: EmailChain;
+  length?: ReplyLength;
   maxTokens?: number;
   tone: ReplyTone;
 }

@@ -127,3 +127,58 @@
     @apply font-sans;
   }
 }
+
+@layer components {
+  .mailai-generate-btn {
+    position: relative;
+    font-weight: 700;
+    color: #fff !important;
+    background: linear-gradient(
+        to top,
+        rgb(20 88 255 / 96%),
+        rgb(56 189 248 / 92%),
+        rgb(125 211 252 / 88%)
+      )
+      padding-box;
+    border: 1px solid transparent;
+    border-radius: 0.9rem;
+    box-shadow: 0 10px 28px rgb(14 116 255 / 30%);
+  }
+
+  .mailai-generate-btn::before {
+    position: absolute;
+    inset: 0;
+    padding: 1px;
+    pointer-events: none;
+    content: "";
+    background: linear-gradient(
+      to top,
+      rgb(186 230 253 / 95%),
+      rgb(125 211 252 / 78%),
+      rgb(59 130 246 / 90%)
+    );
+    border-radius: inherit;
+    -webkit-mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+  }
+
+  .mailai-generate-btn:hover {
+    box-shadow: 0 14px 34px rgb(14 116 255 / 36%);
+    filter: saturate(1.06);
+    transform: translateY(-1px);
+  }
+
+  .mailai-generate-btn,
+  .mailai-generate-btn:visited,
+  .mailai-generate-btn span,
+  .mailai-generate-btn svg {
+    color: #fff !important;
+  }
+
+  .mailai-generate-btn:active {
+    transform: translateY(0);
+  }
+}

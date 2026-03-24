@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "../globals.css";
+import Script from "next/script";
 import { ThemeProvider } from "@/components/theme-provider";
 
 export const metadata: Metadata = {
@@ -13,23 +14,18 @@ export default function TaskpaneLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
-      <head>
-        <script
-          async
-          src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"
-          type="text/javascript"
-        />
-      </head>
-      <body className="antialiased">
-        <ThemeProvider
-          attribute="class"
-          defaultTheme="light"
-          disableTransitionOnChange
-        >
-          {children}
-        </ThemeProvider>
-      </body>
-    </html>
+    <>
+      <Script
+        src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"
+        strategy="afterInteractive"
+      />
+      <ThemeProvider
+        attribute="class"
+        defaultTheme="light"
+        disableTransitionOnChange
+      >
+        {children}
+      </ThemeProvider>
+    </>
   );
 }

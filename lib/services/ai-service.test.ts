@@ -95,6 +95,6 @@ describe("OpenAIService", () => {
       max_completion_tokens?: number;
     };
     expect(arg.model).toBe("gpt-5.4");
-    expect(arg.max_completion_tokens).toBe(1024);
+    expect(arg.max_completion_tokens).toBe(520);
   });
 });
