@@ -1,6 +1,13 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 
+// Auth.js (NextAuth v5) sessions are available via the `auth()` helper in
+// Server Components and API routes. Route protection can be added here later:
+//
+//   import { auth } from "@/auth";
+//   const session = await auth();
+//   if (!session && protectedPath) return NextResponse.redirect("/login");
+
 /**
  * Office on the web loads ribbon/command PNGs via credentialed cross-origin requests.
  * A wildcard Access-Control-Allow-Origin breaks those fetches; echo allowed origins instead.

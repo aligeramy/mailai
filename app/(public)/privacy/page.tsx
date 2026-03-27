@@ -26,8 +26,8 @@ export default function PrivacyPage() {
     <LegalDocShell lastUpdated={LAST_UPDATED} title="Privacy Policy">
       <p>
         This Privacy Policy explains how {SITE_NAME} (“we,” “us,” or “our”)
-        collects, uses, stores, and shares information when you use our
-        website at{" "}
+        collects, uses, stores, and shares information when you use our website
+        at{" "}
         <a
           className="text-foreground underline decoration-border underline-offset-4 hover:decoration-foreground"
           href={SITE_URL}
@@ -46,15 +46,17 @@ export default function PrivacyPage() {
       <p>We may collect or process the following categories of information:</p>
       <ul>
         <li>
-          <strong className="text-foreground">Account and technical data.</strong>{" "}
+          <strong className="text-foreground">
+            Account and technical data.
+          </strong>{" "}
           This includes information such as device type, browser type, IP
           address, timestamps, and basic diagnostic logs needed to keep the
           Service secure and reliable.
         </li>
         <li>
-          <strong className="text-foreground">Content you provide.</strong>{" "}
-          When you generate a reply or submit a support request, we process the
-          text and context you provide so we can deliver the requested feature.
+          <strong className="text-foreground">Content you provide.</strong> When
+          you generate a reply or submit a support request, we process the text
+          and context you provide so we can deliver the requested feature.
         </li>
         <li>
           <strong className="text-foreground">Outlook data.</strong> If you use
@@ -86,8 +88,8 @@ export default function PrivacyPage() {
       <ul>
         <li>
           <strong className="text-foreground">Service providers.</strong> For
-          example, infrastructure, analytics, email delivery, or AI vendors
-          that help us run the Service.
+          example, infrastructure, analytics, email delivery, or AI vendors that
+          help us run the Service.
         </li>
         <li>
           <strong className="text-foreground">Microsoft.</strong> If you use the
@@ -95,7 +97,9 @@ export default function PrivacyPage() {
           terms and privacy practices.
         </li>
         <li>
-          <strong className="text-foreground">Legal and business transfers.</strong>{" "}
+          <strong className="text-foreground">
+            Legal and business transfers.
+          </strong>{" "}
           We may disclose information if required by law or in connection with a
           merger, acquisition, or similar transaction.
         </li>
@@ -140,8 +144,8 @@ export default function PrivacyPage() {
 
       <h2 id="children">Children</h2>
       <p>
-        The Service is not directed to children under 13, or the age required
-        by local law, and we do not knowingly collect personal information from
+        The Service is not directed to children under 13, or the age required by
+        local law, and we do not knowingly collect personal information from
         children.
       </p>
 

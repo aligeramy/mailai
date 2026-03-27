@@ -3,6 +3,7 @@ import {
   buildSystemPrompt,
   formatEmailChain,
   OpenAIService,
+  parseReplyPreferenceRecommendation,
 } from "@/lib/services/ai-service";
 import type { EmailChain } from "@/lib/types";
 
@@ -32,7 +33,27 @@ vi.mock("openai", () => ({
 
 describe("buildSystemPrompt", () => {
   it("mentions tone", () => {
-    expect(buildSystemPrompt("friendly")).toContain("friendly");
+    expect(buildSystemPrompt("high")).toContain("high");
+  });
+});
+
+describe("parseReplyPreferenceRecommendation", () => {
+  it("parses strict JSON", () => {
+    expect(
+      parseReplyPreferenceRecommendation('{"length":"high","tone":"light"}')
+    ).toEqual({
+      length: "high",
+      tone: "light",
+    });
+  });
+
+  it("falls back to loose text parsing", () => {
+    expect(
+      parseReplyPreferenceRecommendation("tone: normal\nlength: light")
+    ).toEqual({
+      length: "light",
+      tone: "normal",
+    });
   });
 });
 
@@ -55,7 +76,7 @@ describe("formatEmailChain", () => {
   it("labels sender and includes subject", () => {
     const out = formatEmailChain({
       emailChain: chain,
-      tone: "professional",
+      tone: "normal",
     });
     expect(out).toContain("Email Subject: Hello");
     expect(out).toContain("them@test.com");
@@ -85,7 +106,7 @@ describe("OpenAIService", () => {
     };
     const r = await svc.generateReply({
       emailChain: chain,
-      tone: "concise",
+      tone: "normal",
     });
     expect(r.reply).toContain("Thank you");
     expect(r.tokensUsed).toBe(42);
@@ -95,6 +116,6 @@ describe("OpenAIService", () => {
       max_completion_tokens?: number;
     };
     expect(arg.model).toBe("gpt-5.4");
-    expect(arg.max_completion_tokens).toBe(520);
+    expect(arg.max_completion_tokens).toBe(420);
   });
 });

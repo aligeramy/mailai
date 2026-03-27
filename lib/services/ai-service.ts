@@ -1,39 +1,59 @@
 import OpenAI from "openai";
 import { stripHtml } from "@/lib/email/html";
+import {
+  DEFAULT_RESOLVED_REPLY_PREFERENCES,
+  isResolvedReplyPreferenceLevel,
+  resolveReplyPreferenceSelection,
+} from "@/lib/reply-preferences";
 import type {
   AIService,
+  EmailChain,
   GenerateReplyOptions,
   GenerateReplyResult,
-  ReplyLength,
+  ResolvedReplyPreferenceLevel,
+  ResolvedReplyPreferences,
 } from "@/lib/types";
 
 /** Models where temperature is omitted (OpenAI newer / reasoning lines). */
 const MODEL_USES_FIXED_SAMPLING_RE = /^(gpt-5|o\d)/i;
 
-const LENGTH_INSTRUCTION: Record<ReplyLength, string> = {
-  quick: "1-2 concise sentences, no intro fluff, action-first response.",
-  short: "One short paragraph (about 2-4 sentences), focused and efficient.",
-  normal: "One to two natural paragraphs (about 4-8 sentences total).",
-  long: "Two to three detailed but readable paragraphs (about 8-14 sentences total).",
+const LENGTH_INSTRUCTION: Record<ResolvedReplyPreferenceLevel, string> = {
+  light: "1-2 concise sentences with only the essentials.",
+  normal: "One compact paragraph or two short ones (about 3-6 sentences).",
+  high: "A fuller reply with the needed detail, structure, or bullets (about 6-10 sentences).",
 };
 
-const LENGTH_MAX_TOKENS: Record<ReplyLength, number> = {
-  quick: 120,
-  short: 260,
-  normal: 520,
-  long: 900,
+const LENGTH_MAX_TOKENS: Record<ResolvedReplyPreferenceLevel, number> = {
+  light: 160,
+  normal: 420,
+  high: 760,
 };
+
+const TONE_INSTRUCTION: Record<ResolvedReplyPreferenceLevel, string> = {
+  light:
+    "Keep tone shaping subtle and restrained. Stay neutral, calm, and understated.",
+  normal:
+    "Use a balanced, polished, human tone. Clear, warm, and professional without sounding stiff.",
+  high: "Use stronger tone shaping when helpful. Add noticeable warmth, confidence, tact, or emphasis while staying appropriate to the thread.",
+};
+
+type FormatEmailChainOptions = Pick<
+  GenerateReplyOptions,
+  "additionalContext" | "emailChain"
+> &
+  Partial<Pick<GenerateReplyOptions, "length" | "tone">>;
 
 /** Build the system prompt for email reply generation */
 export function buildSystemPrompt(
-  tone: string,
-  length: ReplyLength = "normal"
+  tone: ResolvedReplyPreferenceLevel = "normal",
+  length: ResolvedReplyPreferenceLevel = "normal"
 ): string {
   return `You are a professional email assistant. Generate a reply to the email conversation below.
 
 Rules:
-- Match the "${tone}" tone requested
+- Apply tone strength: ${tone} (${TONE_INSTRUCTION[tone]})
 - Target length: ${length} (${LENGTH_INSTRUCTION[length]})
+- Match the relationship, urgency, and emotional weight of the thread
 - Be contextually relevant to the full conversation thread
 - Keep the reply focused and specific to the latest ask
 - Do not include the subject line or email headers
@@ -42,27 +62,27 @@ Rules:
 - Sound human and natural, not robotic or templated
 - Use clean email formatting (short paragraphs, optional bullets when useful)
 - Keep names, facts, dates, and commitments consistent with the thread
-- Avoid over-apologizing, buzzwords, and generic filler
-- If the tone is "professional", use proper business language
-- If the tone is "friendly", be warm but not overly casual
-- If the tone is "concise", keep it brief and to the point
-- If the tone is "formal", use formal language and structure
-- If the tone is "casual", be relaxed and conversational`;
+- Avoid over-apologizing, buzzwords, and generic filler`;
+}
+
+function formatSingleMessage(
+  msg: EmailChain["messages"][number],
+  currentUserEmail: string
+): string {
+  const isFromUser = msg.from === currentUserEmail;
+  const sender = isFromUser ? "You" : msg.from;
+  const timestamp = msg.timestamp.toISOString();
+  const body = msg.isHtml ? stripHtml(msg.body) : msg.body;
+  return `--- ${sender} (${timestamp}) ---\n${body}`;
 }
 
 /** Format the email chain into a prompt-friendly string */
-export function formatEmailChain(options: GenerateReplyOptions): string {
+export function formatEmailChain(options: FormatEmailChainOptions): string {
   const { emailChain, additionalContext } = options;
   const { messages, currentUserEmail } = emailChain;
 
   const formattedMessages = messages
-    .map((msg) => {
-      const isFromUser = msg.from === currentUserEmail;
-      const sender = isFromUser ? "You" : msg.from;
-      const timestamp = msg.timestamp.toISOString();
-      const body = msg.isHtml ? stripHtml(msg.body) : msg.body;
-      return `--- ${sender} (${timestamp}) ---\n${body}`;
-    })
+    .map((msg) => formatSingleMessage(msg, currentUserEmail))
     .join("\n\n");
 
   let prompt = `Email Subject: ${emailChain.subject}\n\nConversation:\n${formattedMessages}\n\nGenerate a reply from the perspective of ${currentUserEmail}.`;
@@ -112,6 +132,67 @@ export async function compressCorrespondentHistoryForReply(
   return text && text.length > 0 ? text : raw.slice(0, 8000);
 }
 
+function buildPreferenceRecommendationPrompt(
+  options: Pick<GenerateReplyOptions, "additionalContext" | "emailChain">
+): string {
+  return `${formatEmailChain(options)}
+
+Choose the best reply settings for this thread.
+
+Return JSON only in this exact shape:
+{"length":"light|normal|high","tone":"light|normal|high"}
+
+Rubric:
+- Length light: quick acknowledgment, simple answer, or low-complexity follow-up
+- Length normal: default for most business replies
+- Length high: multiple asks, nuance, negotiation, scheduling detail, risk, or context-heavy answers
+- Tone light: subtle tone shaping, plain and restrained
+- Tone normal: polished, natural, clear, warm
+- Tone high: stronger warmth, tact, persuasion, confidence, or emotional care when the thread benefits from it
+
+Prefer normal when uncertain.`;
+}
+
+export function parseReplyPreferenceRecommendation(
+  raw: string
+): ResolvedReplyPreferences | null {
+  try {
+    const parsed = JSON.parse(raw) as {
+      length?: unknown;
+      tone?: unknown;
+    };
+    if (
+      isResolvedReplyPreferenceLevel(parsed.length) &&
+      isResolvedReplyPreferenceLevel(parsed.tone)
+    ) {
+      return {
+        length: parsed.length,
+        tone: parsed.tone,
+      };
+    }
+  } catch {
+    /* fall through to regex parsing */
+  }
+
+  const toneMatch = raw.match(/tone[^a-z]+(light|normal|high)/i);
+  const lengthMatch = raw.match(/length[^a-z]+(light|normal|high)/i);
+  const tone = toneMatch?.[1]?.toLowerCase();
+  const length = lengthMatch?.[1]?.toLowerCase();
+
+  if (
+    isResolvedReplyPreferenceLevel(tone) &&
+    isResolvedReplyPreferenceLevel(length)
+  ) {
+    return { tone, length };
+  }
+
+  return null;
+}
+
+function hasAutoPreference(options: GenerateReplyOptions): boolean {
+  return options.tone === "auto" || options.length === "auto";
+}
+
 /** OpenAI implementation of the AI service */
 export class OpenAIService implements AIService {
   private readonly client: OpenAI;
@@ -134,11 +215,60 @@ export class OpenAIService implements AIService {
     this.reasoningEffort = options?.reasoningEffort;
   }
 
+  async recommendReplyPreferences(
+    options: Pick<GenerateReplyOptions, "additionalContext" | "emailChain">
+  ): Promise<ResolvedReplyPreferences> {
+    const supportsTemperature = !MODEL_USES_FIXED_SAMPLING_RE.test(this.model);
+
+    const completion = await this.client.chat.completions.create({
+      model: this.model,
+      messages: [
+        {
+          role: "system",
+          content:
+            'You classify email-reply settings. Return strict JSON only with "length" and "tone".',
+        },
+        {
+          role: "user",
+          content: buildPreferenceRecommendationPrompt(options),
+        },
+      ],
+      max_completion_tokens: 80,
+      ...(supportsTemperature ? { temperature: 0 } : {}),
+      ...(this.reasoningEffort !== undefined && this.reasoningEffort !== null
+        ? { reasoning_effort: this.reasoningEffort }
+        : {}),
+    });
+
+    const text = completion.choices[0]?.message?.content?.trim() ?? "";
+    return (
+      parseReplyPreferenceRecommendation(text) ??
+      DEFAULT_RESOLVED_REPLY_PREFERENCES
+    );
+  }
+
   async generateReply(
     options: GenerateReplyOptions
   ): Promise<GenerateReplyResult> {
-    const resolvedLength = options.length ?? "normal";
-    const systemPrompt = buildSystemPrompt(options.tone, resolvedLength);
+    const lengthSelection = options.length ?? "normal";
+    const recommendation =
+      options.resolvedPreferences ??
+      (hasAutoPreference({ ...options, length: lengthSelection })
+        ? await this.recommendReplyPreferences(options)
+        : DEFAULT_RESOLVED_REPLY_PREFERENCES);
+
+    const resolvedTone = resolveReplyPreferenceSelection(
+      options.tone,
+      recommendation.tone,
+      DEFAULT_RESOLVED_REPLY_PREFERENCES.tone
+    );
+    const resolvedLength = resolveReplyPreferenceSelection(
+      lengthSelection,
+      recommendation.length,
+      DEFAULT_RESOLVED_REPLY_PREFERENCES.length
+    );
+
+    const systemPrompt = buildSystemPrompt(resolvedTone, resolvedLength);
     let userPrompt = formatEmailChain(options);
 
     const rawHistory = options.correspondentHistoryRaw?.trim() ?? "";
@@ -159,7 +289,7 @@ export class OpenAIService implements AIService {
     }
 
     const maxOut =
-      options.maxTokens ?? LENGTH_MAX_TOKENS[resolvedLength] ?? 520;
+      options.maxTokens ?? LENGTH_MAX_TOKENS[resolvedLength] ?? 420;
     const supportsTemperature = !MODEL_USES_FIXED_SAMPLING_RE.test(this.model);
 
     const completion = await this.client.chat.completions.create({
@@ -185,6 +315,8 @@ export class OpenAIService implements AIService {
     return {
       reply: text.trim(),
       model: completion.model ?? this.model,
+      resolvedLength,
+      resolvedTone,
       tokensUsed: completion.usage?.total_tokens ?? 0,
     };
   }

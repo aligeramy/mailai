@@ -1,16 +1,7 @@
 "use client";
 
 import type { LucideIcon } from "lucide-react";
-import {
-  AlignLeft,
-  Briefcase,
-  Coffee,
-  List,
-  Scissors,
-  ScrollText,
-  Smile,
-  Zap,
-} from "lucide-react";
+import { Equal, Loader2, Minus, Plus, Sparkles } from "lucide-react";
 import type { ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -19,33 +10,38 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import {
+  REPLY_LENGTH_TITLES,
+  REPLY_TONE_TITLES,
+} from "@/lib/reply-preferences";
 import type { ReplyLength, ReplyTone } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
+const LEVEL_ICONS: Record<ReplyLength, LucideIcon> = {
+  auto: Sparkles,
+  light: Minus,
+  normal: Equal,
+  high: Plus,
+};
+
 const LENGTH_OPTIONS: {
-  value: ReplyLength;
   title: string;
-  Icon: LucideIcon;
+  value: ReplyLength;
 }[] = [
-  { value: "quick", title: "Blip — a line or two", Icon: Zap },
-  { value: "short", title: "Brief — short and tidy", Icon: AlignLeft },
-  { value: "normal", title: "Balanced — just right", Icon: List },
-  { value: "long", title: "Full — room to breathe", Icon: ScrollText },
+  { value: "auto", title: REPLY_LENGTH_TITLES.auto },
+  { value: "light", title: REPLY_LENGTH_TITLES.light },
+  { value: "normal", title: REPLY_LENGTH_TITLES.normal },
+  { value: "high", title: REPLY_LENGTH_TITLES.high },
 ];
 
 const TONE_OPTIONS: {
-  value: ReplyTone;
   title: string;
-  Icon: LucideIcon;
+  value: ReplyTone;
 }[] = [
-  {
-    value: "professional",
-    title: "Boardroom — clear and polished",
-    Icon: Briefcase,
-  },
-  { value: "friendly", title: "Warm — human, approachable", Icon: Smile },
-  { value: "concise", title: "Direct — no fluff", Icon: Scissors },
-  { value: "casual", title: "Easy — relaxed", Icon: Coffee },
+  { value: "auto", title: REPLY_TONE_TITLES.auto },
+  { value: "light", title: REPLY_TONE_TITLES.light },
+  { value: "normal", title: REPLY_TONE_TITLES.normal },
+  { value: "high", title: REPLY_TONE_TITLES.high },
 ];
 
 function SegmentedIconGroup<
@@ -54,6 +50,7 @@ function SegmentedIconGroup<
 >({
   "aria-label": ariaLabel,
   disabled,
+  loadingValue,
   onChange,
   options,
   renderCell,
@@ -61,9 +58,10 @@ function SegmentedIconGroup<
 }: {
   "aria-label": string;
   disabled?: boolean;
+  loadingValue?: T | null;
   onChange: (next: T) => void;
   options: O[];
-  renderCell: (opt: O, selected: boolean) => ReactNode;
+  renderCell: (opt: O, selected: boolean, loading: boolean) => ReactNode;
   value: T;
 }) {
   const n = options.length;
@@ -74,6 +72,7 @@ function SegmentedIconGroup<
     >
       {options.map((opt, i) => {
         const selected = value === opt.value;
+        const loading = loadingValue === opt.value;
         return (
           <Tooltip key={String(opt.value)}>
             <TooltipTrigger asChild>
@@ -98,7 +97,7 @@ function SegmentedIconGroup<
                 type="button"
                 variant="ghost"
               >
-                {renderCell(opt, selected)}
+                {renderCell(opt, selected, loading)}
               </Button>
             </TooltipTrigger>
             <TooltipContent side="top">{opt.title}</TooltipContent>
@@ -111,9 +110,12 @@ function SegmentedIconGroup<
 
 interface ReplyComposerToolbarProps {
   disabled?: boolean;
+  isResolvingLength?: boolean;
+  isResolvingTone?: boolean;
   length: ReplyLength;
   onLengthChange: (value: ReplyLength) => void;
   onToneChange: (value: ReplyTone) => void;
+  resolutionError?: string | null;
   tone: ReplyTone;
 }
 
@@ -121,9 +123,12 @@ const STYLE_ICON_CLASS = "size-4 shrink-0 stroke-2";
 
 export function ReplyComposerToolbar({
   disabled,
+  isResolvingLength = false,
+  isResolvingTone = false,
   length,
   onLengthChange,
   onToneChange,
+  resolutionError = null,
   tone,
 }: ReplyComposerToolbarProps) {
   return (
@@ -136,10 +141,11 @@ export function ReplyComposerToolbar({
           <SegmentedIconGroup
             aria-label="Reply length"
             disabled={disabled}
+            loadingValue={isResolvingLength ? "auto" : null}
             onChange={onLengthChange}
             options={LENGTH_OPTIONS}
-            renderCell={(opt, selected) => {
-              const Icon = opt.Icon;
+            renderCell={(opt, selected, loading) => {
+              const Icon = loading ? Loader2 : LEVEL_ICONS[opt.value];
               return (
                 <span
                   className={cn(
@@ -147,7 +153,10 @@ export function ReplyComposerToolbar({
                     selected && "text-primary-foreground"
                   )}
                 >
-                  <Icon aria-hidden className={STYLE_ICON_CLASS} />
+                  <Icon
+                    aria-hidden
+                    className={cn(STYLE_ICON_CLASS, loading && "animate-spin")}
+                  />
                 </span>
               );
             }}
@@ -162,10 +171,11 @@ export function ReplyComposerToolbar({
           <SegmentedIconGroup
             aria-label="Reply tone"
             disabled={disabled}
+            loadingValue={isResolvingTone ? "auto" : null}
             onChange={onToneChange}
             options={TONE_OPTIONS}
-            renderCell={(opt, selected) => {
-              const Icon = opt.Icon;
+            renderCell={(opt, selected, loading) => {
+              const Icon = loading ? Loader2 : LEVEL_ICONS[opt.value];
               return (
                 <span
                   className={cn(
@@ -173,13 +183,22 @@ export function ReplyComposerToolbar({
                     selected && "text-primary-foreground"
                   )}
                 >
-                  <Icon aria-hidden className={STYLE_ICON_CLASS} />
+                  <Icon
+                    aria-hidden
+                    className={cn(STYLE_ICON_CLASS, loading && "animate-spin")}
+                  />
                 </span>
               );
             }}
             value={tone}
           />
         </div>
+
+        {resolutionError ? (
+          <div className="mt-2 text-center text-[11px] text-destructive leading-none sm:text-left">
+            {resolutionError}
+          </div>
+        ) : null}
       </section>
     </TooltipProvider>
   );

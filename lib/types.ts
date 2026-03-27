@@ -17,16 +17,20 @@ export interface EmailChain {
   subject: string;
 }
 
+/** Resolved intensity levels for reply settings */
+export type ResolvedReplyPreferenceLevel = "light" | "normal" | "high";
+
 /** Tone options for reply generation */
-export type ReplyTone =
-  | "professional"
-  | "friendly"
-  | "concise"
-  | "formal"
-  | "casual";
+export type ReplyTone = "auto" | ResolvedReplyPreferenceLevel;
 
 /** Length options for reply generation */
-export type ReplyLength = "quick" | "short" | "normal" | "long";
+export type ReplyLength = "auto" | ResolvedReplyPreferenceLevel;
+
+/** Fully resolved reply settings used for prompt building */
+export interface ResolvedReplyPreferences {
+  length: ResolvedReplyPreferenceLevel;
+  tone: ResolvedReplyPreferenceLevel;
+}
 
 /**
  * How far back to pull mailbox messages with this contact for extra model context.
@@ -42,6 +46,7 @@ export interface GenerateReplyOptions {
   emailChain: EmailChain;
   length?: ReplyLength;
   maxTokens?: number;
+  resolvedPreferences?: ResolvedReplyPreferences;
   tone: ReplyTone;
 }
 
@@ -49,6 +54,8 @@ export interface GenerateReplyOptions {
 export interface GenerateReplyResult {
   model: string;
   reply: string;
+  resolvedLength?: ResolvedReplyPreferenceLevel;
+  resolvedTone?: ResolvedReplyPreferenceLevel;
   tokensUsed: number;
 }
 

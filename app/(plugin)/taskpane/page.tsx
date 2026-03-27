@@ -1,24 +1,19 @@
 "use client";
 
 import {
-  Briefcase,
   Check,
   ChevronDown,
   ChevronRight,
-  Gauge,
-  Handshake,
+  Equal,
   Key,
   Loader2,
-  MessageSquareText,
+  Minus,
   PenLine,
+  Plus,
   RefreshCw,
-  Scale,
   ScrollText,
   Settings,
-  Smile,
-  Snail,
-  Text,
-  Turtle,
+  Sparkles,
 } from "lucide-react";
 import {
   type Dispatch,
@@ -48,6 +43,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { useReplyPreferences } from "@/hooks/use-reply-preferences";
 import { stripHtml } from "@/lib/email/html";
 import {
   correspondentHistoryPhaseLabels,
@@ -55,6 +51,12 @@ import {
   restMailboxHistoryUserShortHint,
 } from "@/lib/outlook/correspondent-history-rest";
 import { createEmailProvider } from "@/lib/providers/create-email-provider";
+import {
+  REPLY_LENGTH_LABELS,
+  REPLY_LENGTH_TITLES,
+  REPLY_TONE_LABELS,
+  REPLY_TONE_TITLES,
+} from "@/lib/reply-preferences";
 import type {
   CorrespondentContextWindow,
   CorrespondentHistoryProgress,
@@ -64,16 +66,16 @@ import type {
 } from "@/lib/types";
 
 const TONES: { value: ReplyTone; label: string }[] = [
-  { value: "professional", label: "Professional" },
-  { value: "friendly", label: "Friendly" },
-  { value: "concise", label: "Concise" },
-  { value: "casual", label: "Casual" },
+  { value: "auto", label: REPLY_TONE_LABELS.auto },
+  { value: "light", label: REPLY_TONE_LABELS.light },
+  { value: "normal", label: REPLY_TONE_LABELS.normal },
+  { value: "high", label: REPLY_TONE_LABELS.high },
 ];
 const LENGTHS: { value: ReplyLength; label: string }[] = [
-  { value: "quick", label: "Quick" },
-  { value: "short", label: "Short" },
-  { value: "normal", label: "Normal" },
-  { value: "long", label: "Long" },
+  { value: "auto", label: REPLY_LENGTH_LABELS.auto },
+  { value: "light", label: REPLY_LENGTH_LABELS.light },
+  { value: "normal", label: REPLY_LENGTH_LABELS.normal },
+  { value: "high", label: REPLY_LENGTH_LABELS.high },
 ];
 
 const CORRESPONDENT_CONTEXT_OPTIONS: {
@@ -88,6 +90,8 @@ const CORRESPONDENT_CONTEXT_OPTIONS: {
 ];
 
 const MAILAI_SESSION_HISTORY_UNSUPPORTED = "mailai_history_rest_unsupported";
+const MAILAI_SESSION_HISTORY_UNSUPPORTED_DISMISSED =
+  "mailai_history_rest_unsupported_dismissed";
 
 const RE_CHAIN_FROM = /(?:^|\n)From:\s*(.+)/i;
 const RE_CHAIN_DATE = /(?:^|\n)(?:Date|Sent):\s*(.+)/i;
@@ -114,33 +118,23 @@ interface ChainMeta {
   subject?: string;
 }
 
-function toneIcon(tone: ReplyTone): ReactElement {
-  if (tone === "professional") {
-    return <Briefcase className="size-3.5" />;
+function preferenceIcon(
+  value: ReplyLength | ReplyTone,
+  loading = false
+): ReactElement {
+  if (loading) {
+    return <Loader2 className="size-3.5 animate-spin" />;
   }
-  if (tone === "friendly") {
-    return <Handshake className="size-3.5" />;
+  if (value === "auto") {
+    return <Sparkles className="size-3.5" />;
   }
-  if (tone === "concise") {
-    return <Text className="size-3.5" />;
+  if (value === "light") {
+    return <Minus className="size-3.5" />;
   }
-  if (tone === "formal") {
-    return <Scale className="size-3.5" />;
+  if (value === "normal") {
+    return <Equal className="size-3.5" />;
   }
-  return <Smile className="size-3.5" />;
-}
-
-function lengthIcon(length: ReplyLength): ReactElement {
-  if (length === "quick") {
-    return <Gauge className="size-3.5" />;
-  }
-  if (length === "short") {
-    return <Snail className="size-3.5" />;
-  }
-  if (length === "normal") {
-    return <MessageSquareText className="size-3.5" />;
-  }
-  return <Turtle className="size-3.5" />;
+  return <Plus className="size-3.5" />;
 }
 
 function extractChainMeta(text: string): ChainMeta {
@@ -423,8 +417,6 @@ export default function TaskpanePage() {
   const [emailChain, setEmailChain] = useState<EmailChain | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [tone, setTone] = useState<ReplyTone>("professional");
-  const [length, setLength] = useState<ReplyLength>("normal");
   const [additionalContext, setAdditionalContext] = useState("");
   const [contextExpanded, setContextExpanded] = useState(false);
   const [contextHistoryExpanded, setContextHistoryExpanded] = useState(false);
@@ -441,8 +433,25 @@ export default function TaskpanePage() {
   const [historyPhaseRows, setHistoryPhaseRows] = useState<HistoryPhaseRow[]>(
     []
   );
+  const [mailboxHistoryUnsupported, setMailboxHistoryUnsupported] =
+    useState(false);
   const [mailboxHistoryHostBanner, setMailboxHistoryHostBanner] =
     useState(false);
+
+  const {
+    ensureResolvedPreferences,
+    isResolvingLength,
+    isResolvingTone,
+    length,
+    resolutionError,
+    setLength,
+    setTone,
+    tone,
+  } = useReplyPreferences({
+    additionalContext,
+    apiKey,
+    emailChain,
+  });
 
   const correspondentHistoryTextRef = useRef("");
   const mailboxHistoryRequestGenRef = useRef(0);
@@ -450,9 +459,11 @@ export default function TaskpanePage() {
   const applyMailboxHistoryUnsupportedHost = useCallback(() => {
     try {
       sessionStorage.setItem(MAILAI_SESSION_HISTORY_UNSUPPORTED, "1");
+      sessionStorage.removeItem(MAILAI_SESSION_HISTORY_UNSUPPORTED_DISMISSED);
     } catch {
       /* private / blocked storage */
     }
+    setMailboxHistoryUnsupported(true);
     setMailboxHistoryHostBanner(true);
     setCorrespondentContext("off");
   }, []);
@@ -463,7 +474,12 @@ export default function TaskpanePage() {
         typeof window !== "undefined" &&
         sessionStorage.getItem(MAILAI_SESSION_HISTORY_UNSUPPORTED) === "1"
       ) {
-        setMailboxHistoryHostBanner(true);
+        setMailboxHistoryUnsupported(true);
+        setMailboxHistoryHostBanner(
+          sessionStorage.getItem(
+            MAILAI_SESSION_HISTORY_UNSUPPORTED_DISMISSED
+          ) !== "1"
+        );
       }
     } catch {
       /* empty */
@@ -560,6 +576,7 @@ export default function TaskpanePage() {
       });
       const correspondentHistoryRaw = historyBundle.raw;
       const historySideNote = historyBundle.note;
+      const resolvedPreferences = await ensureResolvedPreferences();
 
       const response = await fetch("/api/generate-reply", {
         method: "POST",
@@ -568,6 +585,7 @@ export default function TaskpanePage() {
           emailChain: chainToUse,
           tone,
           length,
+          resolvedPreferences,
           additionalContext: additionalContext || undefined,
           ...(correspondentHistoryRaw ? { correspondentHistoryRaw } : {}),
           ...(apiKey.trim() ? { apiKey: apiKey.trim() } : {}),
@@ -804,10 +822,13 @@ export default function TaskpanePage() {
                     size="icon-xs"
                     variant={length === l.value ? "default" : "outline"}
                   >
-                    {lengthIcon(l.value)}
+                    {preferenceIcon(
+                      l.value,
+                      l.value === "auto" && isResolvingLength
+                    )}
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent>{l.label}</TooltipContent>
+                <TooltipContent>{REPLY_LENGTH_TITLES[l.value]}</TooltipContent>
               </Tooltip>
             ))}
           </div>
@@ -839,15 +860,24 @@ export default function TaskpanePage() {
                     size="icon-xs"
                     variant={tone === t.value ? "default" : "outline"}
                   >
-                    {toneIcon(t.value)}
+                    {preferenceIcon(
+                      t.value,
+                      t.value === "auto" && isResolvingTone
+                    )}
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent>{t.label}</TooltipContent>
+                <TooltipContent>{REPLY_TONE_TITLES[t.value]}</TooltipContent>
               </Tooltip>
             ))}
           </div>
         </TooltipProvider>
       </div>
+
+      {resolutionError ? (
+        <div className="mb-3 px-1 text-[11px] text-destructive leading-none">
+          {resolutionError}
+        </div>
+      ) : null}
 
       {/* Correspondent mailbox context (Outlook REST) */}
       <div className="group/row mb-3 flex items-center justify-between gap-3 px-1">
@@ -869,6 +899,7 @@ export default function TaskpanePage() {
             <Button
               aria-label={`History: ${opt.label}`}
               className="h-7 min-w-8 gap-1 rounded-none border-y-0 border-r-0 border-l px-2 text-[10px] first:rounded-l-md last:rounded-r-md"
+              disabled={mailboxHistoryUnsupported && opt.value !== "off"}
               key={opt.value}
               onClick={() => setCorrespondentContext(opt.value)}
               size="sm"
@@ -890,6 +921,15 @@ export default function TaskpanePage() {
           ))}
         </div>
       </div>
+
+      {mailboxHistoryUnsupported ? (
+        <p className="mb-3 px-1 text-[11px] text-muted-foreground leading-snug">
+          Mailbox search is unavailable for this Outlook account/client, so
+          History stays on <span className="font-medium">Off</span> here. Use
+          Outlook on the web or Windows with Microsoft 365 for full mailbox
+          search.
+        </p>
+      ) : null}
 
       {mailboxHistoryHostBanner ? (
         <div className="mb-3 rounded-lg border border-amber-500/35 bg-amber-500/5 px-3 py-2.5 text-amber-950 text-xs leading-snug transition-[border-color,background-color,box-shadow,color] duration-200 hover:border-amber-500/50 hover:bg-amber-500/10 hover:text-amber-950 hover:shadow-sm dark:border-amber-500/25 dark:bg-amber-950/40 dark:text-amber-50 dark:hover:border-amber-400/40 dark:hover:bg-amber-950/60 dark:hover:text-amber-50">
@@ -916,7 +956,10 @@ export default function TaskpanePage() {
             onClick={() => {
               setMailboxHistoryHostBanner(false);
               try {
-                sessionStorage.removeItem(MAILAI_SESSION_HISTORY_UNSUPPORTED);
+                sessionStorage.setItem(
+                  MAILAI_SESSION_HISTORY_UNSUPPORTED_DISMISSED,
+                  "1"
+                );
               } catch {
                 /* empty */
               }

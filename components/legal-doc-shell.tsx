@@ -12,13 +12,17 @@ import {
 
 interface LegalDocShellProps {
   children: ReactNode;
-  lastUpdated: string;
+  /** Omit on non-policy pages (e.g. support). */
+  lastUpdated?: string;
+  /** Eyebrow above the title; default “Legal”. */
+  sectionLabel?: string;
   title: string;
 }
 
 export function LegalDocShell({
   title,
   lastUpdated,
+  sectionLabel = "Legal",
   children,
 }: LegalDocShellProps) {
   return (
@@ -56,14 +60,18 @@ export function LegalDocShell({
       <main className="relative z-1 flex flex-1 flex-col px-6 pb-16 md:px-10">
         <article className="mx-auto w-full max-w-2xl py-6 md:py-10">
           <p className="mb-4 font-medium text-[0.65rem] text-muted-foreground uppercase tracking-[0.18em]">
-            Legal
+            {sectionLabel}
           </p>
           <h1 className="mb-4 max-w-[20ch] text-balance font-semibold text-3xl text-foreground tracking-[-0.03em] md:text-4xl">
             {title}
           </h1>
-          <p className="mb-10 text-muted-foreground text-sm">
-            Last updated {lastUpdated}
-          </p>
+          {lastUpdated ? (
+            <p className="mb-10 text-muted-foreground text-sm">
+              Last updated {lastUpdated}
+            </p>
+          ) : (
+            <div className="mb-10" />
+          )}
           <div className="space-y-6 text-muted-foreground text-sm leading-relaxed md:text-[0.9375rem] [&_h2]:scroll-mt-24 [&_h2]:font-semibold [&_h2]:text-foreground [&_h2]:text-lg [&_h2]:tracking-tight [&_li]:my-1.5 [&_ol]:list-decimal [&_ol]:pl-5 [&_p]:leading-relaxed [&_ul]:list-disc [&_ul]:pl-5">
             {children}
           </div>
@@ -93,6 +101,14 @@ export function LegalDocShell({
                   href="/privacy"
                 >
                   Privacy
+                </Link>
+              </li>
+              <li>
+                <Link
+                  className="text-muted-foreground underline decoration-border underline-offset-4 transition-colors hover:text-foreground"
+                  href="/support"
+                >
+                  Support
                 </Link>
               </li>
               <li>

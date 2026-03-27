@@ -2,12 +2,13 @@
 
 import { Copy, Loader2, Sparkles } from "lucide-react";
 import type { CSSProperties } from "react";
-import { useId, useState } from "react";
+import { useId, useMemo, useState } from "react";
 import { OutlookAddinButton } from "@/components/outlook-addin-button";
 import { ReplyComposerToolbar } from "@/components/reply-composer-toolbar";
 import { Button } from "@/components/ui/button";
 import { useGlowSheen } from "@/hooks/use-glow-sheen";
-import type { EmailChain, ReplyLength, ReplyTone } from "@/lib/types";
+import { useReplyPreferences } from "@/hooks/use-reply-preferences";
+import type { EmailChain } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 function buildDemoChainFromPaste(text: string): EmailChain {
@@ -37,9 +38,23 @@ export function LandingReplyDemo() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [tone, setTone] = useState<ReplyTone>("professional");
-  const [length, setLength] = useState<ReplyLength>("normal");
   const generateSheen = useGlowSheen();
+  const draftChain = useMemo(() => {
+    const trimmed = input.trim();
+    return trimmed ? buildDemoChainFromPaste(trimmed) : null;
+  }, [input]);
+  const {
+    ensureResolvedPreferences,
+    isResolvingLength,
+    isResolvingTone,
+    length,
+    resolutionError,
+    setLength,
+    setTone,
+    tone,
+  } = useReplyPreferences({
+    emailChain: draftChain,
+  });
 
   const generate = async () => {
     const trimmed = input.trim();
@@ -53,6 +68,7 @@ export function LandingReplyDemo() {
     setReply(null);
     try {
       const emailChain = buildDemoChainFromPaste(trimmed);
+      const resolvedPreferences = await ensureResolvedPreferences();
       const res = await fetch("/api/generate-reply", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -60,6 +76,7 @@ export function LandingReplyDemo() {
           emailChain,
           tone,
           length,
+          resolvedPreferences,
         }),
       });
       const data = (await res.json()) as { error?: string; reply?: string };
@@ -115,9 +132,12 @@ export function LandingReplyDemo() {
         />
         <ReplyComposerToolbar
           disabled={loading}
+          isResolvingLength={isResolvingLength}
+          isResolvingTone={isResolvingTone}
           length={length}
           onLengthChange={setLength}
           onToneChange={setTone}
+          resolutionError={resolutionError}
           tone={tone}
         />
       </div>

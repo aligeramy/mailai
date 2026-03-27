@@ -16,8 +16,8 @@
   <!-- Outlook: IconUrl must be 64×64; HighResolutionIconUrl must be 128×128 (other Office apps use 32 and 64). -->
   <IconUrl DefaultValue="https://smartreply.space/assets/icon-64.png" />
   <HighResolutionIconUrl DefaultValue="https://smartreply.space/assets/icon-128.png" />
-  <!-- SupportUrl: product help / home. For AppSource, also supply Privacy policy and Terms URLs in Partner Center: same host as NEXT_PUBLIC_SITE_URL, paths /privacy and /terms -->
-  <SupportUrl DefaultValue="https://smartreply.space" />
+  <!-- SupportUrl: help & contact form. Partner Center: also list /privacy and /terms -->
+  <SupportUrl DefaultValue="https://smartreply.space/support" />
 
   <AppDomains>
     <AppDomain>https://smartreply.space</AppDomain>

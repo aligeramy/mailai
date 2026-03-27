@@ -20,6 +20,7 @@ export class GmailProvider implements EmailProvider {
   }
 
   insertReply(_text: string): Promise<void> {
+    void _text;
     return Promise.reject(
       new Error(
         "Gmail provider is not yet implemented. Coming in a future release."
@@ -43,6 +44,8 @@ export class GmailProvider implements EmailProvider {
     _window: CorrespondentContextWindow,
     _onProgress?: (progress: CorrespondentHistoryProgress) => void
   ): Promise<string> {
+    void _window;
+    void _onProgress;
     return Promise.resolve("");
   }
 }

@@ -35,7 +35,7 @@ export function GenerateAiReplyButton({
     <Button
       className={cn(
         "mailai-generate-btn group/gen relative mt-1 mb-2 h-11 w-full overflow-hidden rounded-xl",
-        "border-0 bg-transparent transition-[box-shadow,filter,transform] duration-200 active:scale-[0.99]"
+        "border-0 bg-transparent transition-[box-shadow,transform] duration-200 active:scale-[0.99]"
       )}
       onClick={onGenerate}
       onPointerEnter={handlePointerEnter}
@@ -52,12 +52,8 @@ export function GenerateAiReplyButton({
           } as CSSProperties
         }
       />
-      <span className="relative z-1 flex items-center justify-center gap-2 transition-[filter] duration-200 group-hover/gen:brightness-[1.03]">
-        <Sparkles
-          aria-hidden
-          className="size-4 shrink-0 transition-[filter] duration-200 group-hover/gen:brightness-[1.03]"
-          strokeWidth={2}
-        />
+      <span className="relative z-1 flex items-center justify-center gap-2">
+        <Sparkles aria-hidden className="size-4 shrink-0" strokeWidth={2} />
         Generate AI Reply
       </span>
     </Button>

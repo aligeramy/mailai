@@ -33,3 +33,9 @@ export const OUTLOOK_ADDIN_URL =
 
 export const TERMS_URL = `${SITE_URL}/terms`;
 export const PRIVACY_URL = `${SITE_URL}/privacy`;
+
+/** Public support form (also set as Outlook manifest SupportUrl). */
+export const SUPPORT_URL = `${SITE_URL}/support`;
+
+/** Receives support form submissions via Resend (`POST /api/support`). */
+export const SUPPORT_INBOX_EMAIL = "ali@softx.ca";

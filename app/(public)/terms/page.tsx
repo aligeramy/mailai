@@ -52,8 +52,7 @@ export default function TermsPage() {
       </p>
       <p>
         AI-generated content can be incomplete, inaccurate, or inappropriate.
-        You are responsible for reviewing all output before using or sending
-        it.
+        You are responsible for reviewing all output before using or sending it.
       </p>
 
       <h2 id="your-responsibility">Your responsibility</h2>
@@ -67,7 +66,9 @@ export default function TermsPage() {
       <h2 id="acceptable-use">Acceptable use</h2>
       <p>You agree not to:</p>
       <ul>
-        <li>Use the Service to violate law, infringe rights, or facilitate fraud.</li>
+        <li>
+          Use the Service to violate law, infringe rights, or facilitate fraud.
+        </li>
         <li>Send spam, malware, or other harmful content.</li>
         <li>Attempt to bypass security, rate limits, or access controls.</li>
         <li>

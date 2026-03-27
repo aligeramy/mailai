@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
+import { isReplyPreference } from "@/lib/reply-preferences";
 import { OpenAIService } from "@/lib/services/ai-service";
 import type {
   EmailChain,
@@ -7,15 +8,6 @@ import type {
   ReplyLength,
   ReplyTone,
 } from "@/lib/types";
-
-const VALID_TONES: ReplyTone[] = [
-  "professional",
-  "friendly",
-  "concise",
-  "formal",
-  "casual",
-];
-const VALID_LENGTHS: ReplyLength[] = ["quick", "short", "normal", "long"];
 
 function parseReasoningEffort(
   raw: string | undefined
@@ -86,14 +78,10 @@ async function handleGenerateReplyBody(
     currentUserEmail?: string;
   };
 
-  const resolvedTone: ReplyTone = VALID_TONES.includes(tone as ReplyTone)
-    ? (tone as ReplyTone)
-    : "professional";
-  const resolvedLength: ReplyLength = VALID_LENGTHS.includes(
-    length as ReplyLength
-  )
-    ? (length as ReplyLength)
-    : "normal";
+  const tonePreference: ReplyTone = isReplyPreference(tone) ? tone : "auto";
+  const lengthPreference: ReplyLength = isReplyPreference(length)
+    ? length
+    : "auto";
 
   const parsedChain: EmailChain = {
     subject: ec.subject ?? "No Subject",
@@ -105,6 +93,7 @@ async function handleGenerateReplyBody(
   };
 
   const model = process.env.OPENAI_MODEL ?? "gpt-5.4";
+  const fastModel = process.env.OPENAI_FAST_MODEL ?? "gpt-5.4-mini";
   const reasoningEffort = parseReasoningEffort(
     process.env.OPENAI_REASONING_EFFORT
   );
@@ -121,15 +110,37 @@ async function handleGenerateReplyBody(
       ? correspondentHistoryRaw.trim()
       : undefined;
 
+  const additionalContextResolved =
+    typeof additionalContext === "string" && additionalContext.trim()
+      ? additionalContext.trim()
+      : undefined;
+
+  let resolvedPreferences: GenerateReplyOptions["resolvedPreferences"];
+  if (tonePreference === "auto" || lengthPreference === "auto") {
+    try {
+      const fastService = new OpenAIService(resolvedApiKey, fastModel, {
+        baseURL,
+        reasoningEffort: "low",
+      });
+      resolvedPreferences = await fastService.recommendReplyPreferences({
+        emailChain: parsedChain,
+        additionalContext: additionalContextResolved,
+      });
+    } catch (resolutionError) {
+      console.warn(
+        "[mailai/api] fast reply preference resolution failed; falling back",
+        resolutionError
+      );
+    }
+  }
+
   const options: GenerateReplyOptions = {
     emailChain: parsedChain,
-    tone: resolvedTone,
-    length: resolvedLength,
-    additionalContext:
-      typeof additionalContext === "string" && additionalContext.trim()
-        ? additionalContext.trim()
-        : undefined,
+    tone: tonePreference,
+    length: lengthPreference,
+    additionalContext: additionalContextResolved,
     correspondentHistoryRaw: rawHistory,
+    resolvedPreferences,
   };
 
   const result = await service.generateReply(options);
