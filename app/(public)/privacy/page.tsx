@@ -1,6 +1,11 @@
 import type { Metadata } from "next";
 import { LegalDocShell } from "@/components/legal-doc-shell";
-import { PRIVACY_URL, SITE_NAME, SITE_URL } from "@/lib/site-config";
+import {
+  PRIVACY_URL,
+  SITE_NAME,
+  SITE_URL,
+  SUPPORT_INBOX_EMAIL,
+} from "@/lib/site-config";
 
 const LAST_UPDATED = "March 24, 2025";
 
@@ -20,114 +25,148 @@ export default function PrivacyPage() {
   return (
     <LegalDocShell lastUpdated={LAST_UPDATED} title="Privacy Policy">
       <p>
-        This Privacy Policy describes how {SITE_NAME} (“we,” “us”) collects,
-        uses, and shares information when you use our website at{" "}
+        This Privacy Policy explains how {SITE_NAME} (“we,” “us,” or “our”)
+        collects, uses, stores, and shares information when you use our
+        website at{" "}
         <a
           className="text-foreground underline decoration-border underline-offset-4 hover:decoration-foreground"
           href={SITE_URL}
         >
           {new URL(SITE_URL).host}
         </a>{" "}
-        and the optional Microsoft Outlook add-in (“Add-in”).
+        and the optional Microsoft Outlook add-in (the “Service”).
       </p>
 
-      <h2 id="collect">Information we process</h2>
-      <p>Depending on how you use the Service, we may process:</p>
+      <p>
+        By using the Service, you consent to the practices described in this
+        Policy. If you do not agree with this Policy, do not use the Service.
+      </p>
+
+      <h2 id="information-we-collect">Information we collect</h2>
+      <p>We may collect or process the following categories of information:</p>
       <ul>
         <li>
-          <strong className="text-foreground">
-            Account and technical data.
-          </strong>{" "}
-          For example basic log or diagnostic data needed to operate the site
-          (such as IP address, device/browser type, and timestamps) and cookies
-          or similar technologies as described below.
+          <strong className="text-foreground">Account and technical data.</strong>{" "}
+          This includes information such as device type, browser type, IP
+          address, timestamps, and basic diagnostic logs needed to keep the
+          Service secure and reliable.
         </li>
         <li>
-          <strong className="text-foreground">Content you submit.</strong> When
-          you generate a reply, the text you provide (for example message or
-          thread excerpts you paste or that the Add-in reads per your
-          permissions) may be sent to AI providers to produce a draft.
+          <strong className="text-foreground">Content you provide.</strong>{" "}
+          When you generate a reply or submit a support request, we process the
+          text and context you provide so we can deliver the requested feature.
         </li>
         <li>
-          <strong className="text-foreground">Integration data.</strong> If you
-          connect third-party services (for example an AI API using your key),
-          those providers may process data according to their own policies.
+          <strong className="text-foreground">Outlook data.</strong> If you use
+          the add-in, the Service may access message or thread context according
+          to the permissions you grant in Microsoft Outlook or Microsoft 365.
+        </li>
+        <li>
+          <strong className="text-foreground">Support communications.</strong>{" "}
+          If you contact us, we receive the information you send, such as your
+          name, email address, and message.
         </li>
       </ul>
 
-      <h2 id="ai">AI providers</h2>
-      <p>
-        We may use third-party AI services to generate suggestions. Those
-        providers may process prompts and related content on their systems. You
-        should review their terms and privacy notices. Do not submit highly
-        sensitive information unless you understand the risks.
-      </p>
+      <h2 id="how-we-use-information">How we use information</h2>
+      <p>We use information to:</p>
+      <ul>
+        <li>Provide and improve the Service.</li>
+        <li>Generate reply drafts and related suggestions.</li>
+        <li>Operate, maintain, secure, and debug the Service.</li>
+        <li>Respond to support inquiries and product questions.</li>
+        <li>Comply with legal obligations and enforce our terms.</li>
+      </ul>
 
-      <h2 id="outlook">Outlook</h2>
+      <h2 id="sharing">How we share information</h2>
       <p>
-        The Add-in runs inside Outlook and uses the permissions you grant in
-        Microsoft 365. Microsoft processes data under its own terms and privacy
-        statement. We do not control Microsoft’s systems.
+        We do not sell personal information. We may share information only as
+        needed to operate the Service, including with:
       </p>
+      <ul>
+        <li>
+          <strong className="text-foreground">Service providers.</strong> For
+          example, infrastructure, analytics, email delivery, or AI vendors
+          that help us run the Service.
+        </li>
+        <li>
+          <strong className="text-foreground">Microsoft.</strong> If you use the
+          Outlook add-in, Microsoft processes some data according to its own
+          terms and privacy practices.
+        </li>
+        <li>
+          <strong className="text-foreground">Legal and business transfers.</strong>{" "}
+          We may disclose information if required by law or in connection with a
+          merger, acquisition, or similar transaction.
+        </li>
+      </ul>
 
-      <h2 id="cookies">Cookies and local storage</h2>
+      <h2 id="ai-providers">AI providers</h2>
       <p>
-        We may use cookies and similar technologies to keep the site working
-        (for example preferences such as theme), to understand usage in the
-        aggregate, and to improve the Service. You can control cookies through
-        your browser settings.
+        When you use AI features, your prompts and related context may be sent
+        to third-party AI providers to generate output. Those providers process
+        the data under their own terms and privacy policies. Do not submit
+        highly sensitive information unless you understand the risks.
       </p>
 
       <h2 id="retention">Retention</h2>
       <p>
-        We retain information only as long as needed for the purposes described
-        in this Policy, unless a longer period is required by law. Operational
-        logs may be retained for a limited period for security and debugging.
+        We keep information only for as long as reasonably necessary to operate
+        the Service, fulfill the purposes described in this Policy, or meet
+        legal, security, or accounting obligations.
+      </p>
+
+      <h2 id="cookies">Cookies and similar technologies</h2>
+      <p>
+        We may use cookies and similar technologies to remember preferences,
+        improve performance, and understand how the Service is used. You can
+        control cookies through your browser settings.
       </p>
 
       <h2 id="security">Security</h2>
       <p>
-        We use reasonable administrative and technical safeguards designed to
-        protect information. No method of transmission over the Internet is 100%
-        secure.
+        We use reasonable administrative, technical, and organizational
+        safeguards designed to protect information. No system is completely
+        secure, and we cannot guarantee absolute security.
       </p>
 
-      <h2 id="rights">Your choices and rights</h2>
+      <h2 id="your-rights">Your choices and rights</h2>
       <p>
         Depending on where you live, you may have rights to access, correct,
-        delete, or restrict certain personal information, or to object to or
-        limit certain processing. To make a request, contact us using the
-        details below. We may need to verify your request.
+        delete, or restrict certain personal information, or to object to some
+        processing. To exercise those rights, contact us using the information
+        below. We may need to verify your request.
       </p>
 
       <h2 id="children">Children</h2>
       <p>
-        The Service is not directed to children under 13 (or the age required by
-        your jurisdiction), and we do not knowingly collect personal information
-        from children.
-      </p>
-
-      <h2 id="international">International transfers</h2>
-      <p>
-        If you access the Service from outside the country where we operate,
-        your information may be processed in countries that may have different
-        data protection laws.
+        The Service is not directed to children under 13, or the age required
+        by local law, and we do not knowingly collect personal information from
+        children.
       </p>
 
       <h2 id="changes">Changes to this Policy</h2>
       <p>
-        We may update this Privacy Policy from time to time. We will post the
-        updated version on this page and update the “Last updated” date above.
+        We may update this Privacy Policy from time to time. If we make changes,
+        we will post the updated version here and revise the “Last updated” date
+        above.
       </p>
 
       <h2 id="contact">Contact</h2>
       <p>
-        Questions about privacy? Contact us through{" "}
+        If you have questions about this Policy, contact us through the{" "}
         <a
           className="text-foreground underline decoration-border underline-offset-4 hover:decoration-foreground"
-          href={SITE_URL}
+          href="/support"
         >
-          {new URL(SITE_URL).host}
+          support page
+        </a>{" "}
+        or email{" "}
+        <a
+          className="text-foreground underline decoration-border underline-offset-4 hover:decoration-foreground"
+          href={`mailto:${SUPPORT_INBOX_EMAIL}`}
+        >
+          {SUPPORT_INBOX_EMAIL}
         </a>
         .
       </p>

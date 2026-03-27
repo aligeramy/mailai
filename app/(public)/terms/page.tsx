@@ -1,6 +1,11 @@
 import type { Metadata } from "next";
 import { LegalDocShell } from "@/components/legal-doc-shell";
-import { SITE_NAME, SITE_URL, TERMS_URL } from "@/lib/site-config";
+import {
+  SITE_NAME,
+  SITE_URL,
+  SUPPORT_INBOX_EMAIL,
+  TERMS_URL,
+} from "@/lib/site-config";
 
 const LAST_UPDATED = "March 24, 2025";
 
@@ -28,67 +33,70 @@ export default function TermsPage() {
         >
           {new URL(SITE_URL).host}
         </a>{" "}
-        and the optional Microsoft Outlook add-in that connects to the Service
-        (“Add-in”). By using the Service, you agree to these Terms.
+        and the optional Microsoft Outlook add-in. By using the Service, you
+        agree to these Terms.
       </p>
 
-      <h2 id="eligibility">Eligibility and accounts</h2>
+      <h2 id="eligibility">Eligibility and authority</h2>
       <p>
-        You must be able to form a binding contract where you live. If you use
-        the Service on behalf of an organization, you represent that you have
-        authority to bind that organization.
+        You must be able to form a binding contract in your jurisdiction to use
+        the Service. If you use the Service on behalf of an organization, you
+        represent that you have authority to bind that organization.
       </p>
 
       <h2 id="service">The Service</h2>
       <p>
-        {SITE_NAME} helps you draft replies using AI features. The Service may
-        rely on third-party AI providers (for example OpenAI) when you choose to
-        generate content. Output is generated automatically and may be
-        inaccurate or inappropriate—you are responsible for reviewing and
-        editing anything before you send it.
+        {SITE_NAME} provides AI-assisted email reply drafting and related
+        productivity features. Some features may rely on third-party providers,
+        including AI models, to generate output when you choose to use them.
       </p>
-
-      <h2 id="keys">Your API keys and credentials</h2>
       <p>
-        Where the Service is configured to use your own API keys or accounts,
-        you are responsible for keeping those secrets secure and for all
-        activity under them, including usage charges imposed by third parties.
+        AI-generated content can be incomplete, inaccurate, or inappropriate.
+        You are responsible for reviewing all output before using or sending
+        it.
       </p>
 
-      <h2 id="acceptable">Acceptable use</h2>
+      <h2 id="your-responsibility">Your responsibility</h2>
+      <p>
+        You are responsible for your use of the Service, for maintaining the
+        confidentiality of any credentials or API keys you use with it, and for
+        ensuring that your use complies with applicable laws, employer policies,
+        and third-party terms.
+      </p>
+
+      <h2 id="acceptable-use">Acceptable use</h2>
       <p>You agree not to:</p>
       <ul>
+        <li>Use the Service to violate law, infringe rights, or facilitate fraud.</li>
+        <li>Send spam, malware, or other harmful content.</li>
+        <li>Attempt to bypass security, rate limits, or access controls.</li>
         <li>
-          Use the Service to violate law, infringe rights, or send spam or
-          malware.
-        </li>
-        <li>
-          Attempt to probe, scan, or test the vulnerability of our systems, or
-          bypass security or rate limits.
-        </li>
-        <li>
-          Reverse engineer or attempt to extract the Service’s source code,
-          except where such restrictions are prohibited by law.
-        </li>
-        <li>
-          Use the Service to generate or distribute unlawful, harassing,
-          defamatory, or harmful content.
+          Reverse engineer or attempt to extract source code, except where
+          prohibited restrictions are unenforceable by law.
         </li>
       </ul>
 
+      <h2 id="third-party-services">Third-party services</h2>
+      <p>
+        The Service may integrate with Microsoft Outlook, Microsoft 365, AI
+        providers, and other third-party services. Your use of those services is
+        governed by their own terms and policies, and we are not responsible for
+        third-party systems or outages.
+      </p>
+
       <h2 id="outlook">Outlook and Microsoft</h2>
       <p>
-        The Add-in runs inside Microsoft Outlook. Your use of Outlook is
-        governed by Microsoft’s terms and policies. Microsoft is not responsible
-        for the Add-in or this Service.
+        The add-in runs inside Microsoft Outlook. Microsoft controls the
+        Outlook, Microsoft 365, and account-level features that make the add-in
+        possible, and Microsoft’s policies apply to those products.
       </p>
 
       <h2 id="disclaimers">Disclaimers</h2>
       <p>
         THE SERVICE IS PROVIDED “AS IS” AND “AS AVAILABLE,” WITHOUT WARRANTIES
-        OF ANY KIND, WHETHER EXPRESS OR IMPLIED, INCLUDING IMPLIED WARRANTIES OF
-        MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND NON-INFRINGEMENT,
-        TO THE MAXIMUM EXTENT PERMITTED BY LAW.
+        OF ANY KIND, WHETHER EXPRESS, IMPLIED, OR STATUTORY, INCLUDING IMPLIED
+        WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND
+        NON-INFRINGEMENT, TO THE MAXIMUM EXTENT PERMITTED BY LAW.
       </p>
 
       <h2 id="liability">Limitation of liability</h2>
@@ -102,23 +110,29 @@ export default function TermsPage() {
         APPLICABLE.
       </p>
 
-      <h2 id="changes">Changes</h2>
+      <h2 id="changes">Changes to the Service or Terms</h2>
       <p>
         We may update the Service and these Terms from time to time. If we make
-        material changes, we will take reasonable steps to notify you (for
-        example by posting an updated date on this page). Your continued use
-        after changes become effective constitutes acceptance of the revised
-        Terms.
+        material changes, we will take reasonable steps to notify you, such as
+        by updating the date on this page. Continued use of the Service after
+        the changes take effect means you accept the revised Terms.
       </p>
 
       <h2 id="contact">Contact</h2>
       <p>
-        Questions about these Terms? Contact us through the site at{" "}
+        If you have questions about these Terms, contact us through the{" "}
         <a
           className="text-foreground underline decoration-border underline-offset-4 hover:decoration-foreground"
-          href={SITE_URL}
+          href="/support"
         >
-          {new URL(SITE_URL).host}
+          support page
+        </a>{" "}
+        or email{" "}
+        <a
+          className="text-foreground underline decoration-border underline-offset-4 hover:decoration-foreground"
+          href={`mailto:${SUPPORT_INBOX_EMAIL}`}
+        >
+          {SUPPORT_INBOX_EMAIL}
         </a>
         .
       </p>
