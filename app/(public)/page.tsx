@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
+import { HeaderAuth } from "@/components/header-auth";
 import { LandingReplyDemo } from "@/components/landing-reply-demo";
 import { ThemeToggle } from "@/components/theme-toggle";
 import {
@@ -83,7 +84,10 @@ export default function Home() {
             </span>
           </span>
         </div>
-        <ThemeToggle />
+        <div className="flex items-center gap-1.5">
+          <HeaderAuth />
+          <ThemeToggle />
+        </div>
       </header>
 
       <main className="relative z-1 flex flex-1 flex-col items-center px-6 pt-4 pb-16 md:px-10">
