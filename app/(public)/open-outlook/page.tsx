@@ -12,7 +12,11 @@ export const metadata: Metadata = {
 
 export default function OpenOutlookPage() {
   return (
-    <LegalDocShell sectionLabel="Next step" title="You’re signed in">
+    <LegalDocShell
+      centerHeader
+      sectionLabel="Next step"
+      title="You’re signed in"
+    >
       <OpenOutlookAfterSignIn webMailUrl={OUTLOOK_ADDIN_URL} />
     </LegalDocShell>
   );

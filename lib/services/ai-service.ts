@@ -17,6 +17,12 @@ import type {
 /** Models where temperature is omitted (OpenAI newer / reasoning lines). */
 const MODEL_USES_FIXED_SAMPLING_RE = /^(gpt-5|o\d)/i;
 
+/**
+ * Reply-preference calls only need a short JSON answer, but reasoning models
+ * can consume most of a small max_completion_tokens budget before emitting text.
+ */
+const REPLY_PREFERENCE_MAX_COMPLETION_TOKENS = 1024;
+
 const LENGTH_INSTRUCTION: Record<ResolvedReplyPreferenceLevel, string> = {
   light: "1-2 concise sentences with only the essentials.",
   normal: "One compact paragraph or two short ones (about 3-6 sentences).",
@@ -233,7 +239,7 @@ export class OpenAIService implements AIService {
           content: buildPreferenceRecommendationPrompt(options),
         },
       ],
-      max_completion_tokens: 80,
+      max_completion_tokens: REPLY_PREFERENCE_MAX_COMPLETION_TOKENS,
       ...(supportsTemperature ? { temperature: 0 } : {}),
       ...(this.reasoningEffort !== undefined && this.reasoningEffort !== null
         ? { reasoning_effort: this.reasoningEffort }

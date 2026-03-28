@@ -9,8 +9,11 @@ import {
   SITE_HEADER_LOCKUP,
   SITE_URL,
 } from "@/lib/site-config";
+import { cn } from "@/lib/utils";
 
 interface LegalDocShellProps {
+  /** Center section label and title (short instructional pages). */
+  centerHeader?: boolean;
   children: ReactNode;
   /** Omit on non-policy pages (e.g. support). */
   lastUpdated?: string;
@@ -23,6 +26,7 @@ export function LegalDocShell({
   title,
   lastUpdated,
   sectionLabel = "Legal",
+  centerHeader = false,
   children,
 }: LegalDocShellProps) {
   return (
@@ -59,10 +63,20 @@ export function LegalDocShell({
 
       <main className="relative z-1 flex flex-1 flex-col px-6 pb-16 md:px-10">
         <article className="mx-auto w-full max-w-2xl py-6 md:py-10">
-          <p className="mb-4 font-medium text-[0.65rem] text-muted-foreground uppercase tracking-[0.18em]">
+          <p
+            className={cn(
+              "mb-4 font-medium text-[0.65rem] text-muted-foreground uppercase tracking-[0.18em]",
+              centerHeader && "text-center"
+            )}
+          >
             {sectionLabel}
           </p>
-          <h1 className="mb-4 max-w-[20ch] text-balance font-semibold text-3xl text-foreground tracking-[-0.03em] md:text-4xl">
+          <h1
+            className={cn(
+              "mb-4 text-balance font-semibold text-3xl text-foreground tracking-[-0.03em] md:text-4xl",
+              centerHeader ? "mx-auto max-w-2xl text-center" : "max-w-[20ch]"
+            )}
+          >
             {title}
           </h1>
           {lastUpdated ? (
