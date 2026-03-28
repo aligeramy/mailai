@@ -2,9 +2,9 @@
 
 import { signIn, signOut } from "@/auth";
 
-/** Kick off the Microsoft Entra ID OAuth flow and redirect to the taskpane on success. */
+/** Kick off the Microsoft Entra ID OAuth flow; after success, guide users into Outlook. */
 export async function signInWithMicrosoft(_formData?: FormData) {
-  await signIn("microsoft-entra-id", { redirectTo: "/taskpane" });
+  await signIn("microsoft-entra-id", { redirectTo: "/open-outlook" });
 }
 
 /** Sign out and return to the home page. */
