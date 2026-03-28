@@ -36,11 +36,17 @@ export function LoginForm() {
       {/* Fine print */}
       <p className="text-balance text-center text-muted-foreground text-xs">
         By signing in you agree to our{" "}
-        <a className="underline underline-offset-4 hover:text-foreground" href="/terms">
+        <a
+          className="underline underline-offset-4 hover:text-foreground"
+          href="/terms"
+        >
           Terms
         </a>{" "}
         and{" "}
-        <a className="underline underline-offset-4 hover:text-foreground" href="/privacy">
+        <a
+          className="underline underline-offset-4 hover:text-foreground"
+          href="/privacy"
+        >
           Privacy Policy
         </a>
         .

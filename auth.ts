@@ -1,15 +1,30 @@
 import NextAuth from "next-auth";
 import MicrosoftEntraID from "next-auth/providers/microsoft-entra-id";
 
+const COMMON_ISSUER = "https://login.microsoftonline.com/common/v2.0";
+
+/**
+ * OIDC issuer for Entra. Default: `/common` (multi-tenant app in Azure).
+ * Single-tenant: set AUTH_MICROSOFT_ENTRA_ID_ISSUER to
+ * `https://login.microsoftonline.com/<TENANT_ID>/v2.0` (no trailing slash).
+ *
+ * Note: Auth.js’s Entra provider matches tenant with `(\w+)` only; UUID tenants
+ * can break discovery unless you use `/common` or a non-GUID tenant alias.
+ */
+function microsoftEntraIssuer(): string | undefined {
+  const raw = process.env.AUTH_MICROSOFT_ENTRA_ID_ISSUER?.trim();
+  if (!raw || raw.toLowerCase() === "common") {
+    return COMMON_ISSUER;
+  }
+  return raw.replace(/\/$/, "");
+}
+
 export const { handlers, auth, signIn, signOut } = NextAuth({
   providers: [
     MicrosoftEntraID({
       clientId: process.env.AUTH_MICROSOFT_ENTRA_ID_ID ?? "",
       clientSecret: process.env.AUTH_MICROSOFT_ENTRA_ID_SECRET ?? "",
-      // Leave issuer unset (or set to "common") to allow any Microsoft account.
-      // To restrict to your org only, set AUTH_MICROSOFT_ENTRA_ID_ISSUER to
-      // https://login.microsoftonline.com/<YOUR_TENANT_ID>/v2.0/
-      issuer: process.env.AUTH_MICROSOFT_ENTRA_ID_ISSUER,
+      issuer: microsoftEntraIssuer(),
       authorization: {
         params: {
           // Request Mail.Read + User.Read so the access token can later be used

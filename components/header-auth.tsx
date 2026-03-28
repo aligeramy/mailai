@@ -1,7 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
-import { auth } from "@/auth";
 import { signOutAction } from "@/app/actions/auth";
+import { auth } from "@/auth";
 import { Button } from "@/components/ui/button";
 import { buttonVariants } from "@/components/ui/button-variants";
 import { cn } from "@/lib/utils";
@@ -56,7 +56,7 @@ export async function HeaderAuth() {
       {/* Avatar */}
       <span
         aria-hidden
-        className="flex size-7 shrink-0 items-center justify-center overflow-hidden rounded-full border border-border/60 bg-muted text-[0.65rem] font-semibold text-muted-foreground"
+        className="flex size-7 shrink-0 items-center justify-center overflow-hidden rounded-full border border-border/60 bg-muted font-semibold text-[0.65rem] text-muted-foreground"
       >
         {user.image ? (
           <Image
@@ -72,7 +72,7 @@ export async function HeaderAuth() {
       </span>
 
       {/* Name — hidden on small screens */}
-      <span className="hidden max-w-[120px] truncate text-sm font-medium leading-none sm:block">
+      <span className="hidden max-w-[120px] truncate font-medium text-sm leading-none sm:block">
         {user.name ?? user.email}
       </span>
 
