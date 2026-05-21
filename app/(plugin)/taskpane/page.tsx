@@ -27,6 +27,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { ContextManagerView } from "@/components/context-manager-view";
 import { GenerateAiReplyButton } from "@/components/generate-ai-reply-button";
 import { Button } from "@/components/ui/button";
 import {
@@ -213,7 +214,7 @@ const DROPPED_LINE_PATTERNS: RegExp[] = [
   /^\*The price quoted above/i,
 ];
 
-type ViewState = "main" | "settings";
+type ViewState = "main" | "settings" | "context";
 interface ChainMeta {
   date?: string;
   from?: string;
@@ -513,6 +514,7 @@ function MailboxHistoryPreviewBody({
   return null;
 }
 
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: top-level Outlook taskpane orchestrates Office.js lifecycle, view tabs, generate flow, and history fetch progress; splitting hides where state lives.
 export default function TaskpanePage() {
   const [officeReady, setOfficeReady] = useState(false);
   const [officeInitFailed, setOfficeInitFailed] = useState(false);
@@ -909,361 +911,411 @@ export default function TaskpanePage() {
         </div>
       )}
 
-      {/* Length selector */}
-      <div className="group/row mt-2 mb-2 flex items-center justify-between gap-3 px-1">
-        <label
-          className="font-medium text-foreground/88 text-sm transition-colors duration-200 group-hover/row:text-foreground"
-          htmlFor="length-group"
+      {/* View tabs: Compose ↔ Context */}
+      <div className="mb-3 inline-flex self-stretch rounded-md border border-white/10 bg-background/40 p-0.5">
+        <button
+          aria-pressed={view === "main"}
+          className={`flex-1 rounded px-3 py-1.5 font-medium text-xs transition-colors ${
+            view === "main"
+              ? "bg-foreground text-background"
+              : "text-muted-foreground hover:text-foreground"
+          }`}
+          onClick={() => setView("main")}
+          type="button"
         >
-          Reply Length
-        </label>
-        <TooltipProvider>
-          {/* biome-ignore lint/a11y/useSemanticElements: segmented control; fieldset breaks tooltip layout */}
-          <div
-            className="inline-flex overflow-hidden rounded-md border border-white/10 bg-background/40 transition-[background-color,border-color,box-shadow] duration-200 hover:border-white/22 hover:bg-background/55 hover:shadow-sm"
-            id="length-group"
-            role="group"
-          >
-            {LENGTHS.map((l) => (
-              <Tooltip key={l.value}>
-                <TooltipTrigger asChild>
-                  <Button
-                    aria-label={l.label}
-                    className="rounded-none border-y-0 border-r-0 border-l first:rounded-l-md last:rounded-r-md"
-                    onClick={() => setLength(l.value)}
-                    size="icon-xs"
-                    variant={length === l.value ? "default" : "outline"}
-                  >
-                    {preferenceIcon(
-                      l.value,
-                      l.value === "auto" && isResolvingLength
-                    )}
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>{REPLY_LENGTH_TITLES[l.value]}</TooltipContent>
-              </Tooltip>
-            ))}
-          </div>
-        </TooltipProvider>
+          Compose
+        </button>
+        <button
+          aria-pressed={view === "context"}
+          className={`flex-1 rounded px-3 py-1.5 font-medium text-xs transition-colors ${
+            view === "context"
+              ? "bg-foreground text-background"
+              : "text-muted-foreground hover:text-foreground"
+          }`}
+          onClick={() => setView("context")}
+          type="button"
+        >
+          Context
+        </button>
       </div>
 
-      {/* Tone selector */}
-      <div className="group/row mb-3 flex items-center justify-between gap-3 px-1">
-        <label
-          className="font-medium text-foreground/88 text-sm transition-colors duration-200 group-hover/row:text-foreground"
-          htmlFor="tone-group"
-        >
-          Reply Tone
-        </label>
-        <TooltipProvider>
-          {/* biome-ignore lint/a11y/useSemanticElements: segmented control; fieldset breaks tooltip layout */}
-          <div
-            className="inline-flex overflow-hidden rounded-md border border-white/10 bg-background/40 transition-[background-color,border-color,box-shadow] duration-200 hover:border-white/22 hover:bg-background/55 hover:shadow-sm"
-            id="tone-group"
-            role="group"
-          >
-            {TONES.map((t) => (
-              <Tooltip key={t.value}>
-                <TooltipTrigger asChild>
-                  <Button
-                    aria-label={t.label}
-                    className="rounded-none border-y-0 border-r-0 border-l first:rounded-l-md last:rounded-r-md"
-                    onClick={() => setTone(t.value)}
-                    size="icon-xs"
-                    variant={tone === t.value ? "default" : "outline"}
-                  >
-                    {preferenceIcon(
-                      t.value,
-                      t.value === "auto" && isResolvingTone
-                    )}
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>{REPLY_TONE_TITLES[t.value]}</TooltipContent>
-              </Tooltip>
-            ))}
-          </div>
-        </TooltipProvider>
-      </div>
+      {view === "context" && (
+        <ContextManagerView
+          compact
+          email={emailChain ? resolveCounterpartyFromChain(emailChain) : ""}
+        />
+      )}
 
-      {resolutionError ? (
-        <div className="mb-3 px-1 text-[11px] text-destructive leading-none">
-          {resolutionError}
-        </div>
-      ) : null}
-
-      {/* Correspondent mailbox context (Outlook REST) */}
-      <div className="group/row mb-3 flex items-center justify-between gap-3 px-1">
-        <div className="flex min-w-0 items-center gap-1.5">
-          <label
-            className="font-medium text-foreground/88 text-sm transition-colors duration-200 group-hover/row:text-foreground"
-            htmlFor="correspondent-context-group"
-          >
-            History
-          </label>
-        </div>
-        {/* biome-ignore lint/a11y/useSemanticElements: segmented control group */}
-        <div
-          className="inline-flex max-w-[min(100%,220px)] flex-wrap justify-end gap-0 overflow-hidden rounded-md border border-white/10 bg-background/40 transition-[background-color,border-color,box-shadow] duration-200 hover:border-white/22 hover:bg-background/55 hover:shadow-sm sm:max-w-none sm:flex-nowrap"
-          id="correspondent-context-group"
-          role="group"
-        >
-          {CORRESPONDENT_CONTEXT_OPTIONS.map((opt) => (
-            <Button
-              aria-label={`History: ${opt.label}`}
-              className="h-7 min-w-8 gap-1 rounded-none border-y-0 border-r-0 border-l px-2 text-[10px] first:rounded-l-md last:rounded-r-md"
-              disabled={mailboxHistoryUnsupported && opt.value !== "off"}
-              key={opt.value}
-              onClick={() => setCorrespondentContext(opt.value)}
-              size="sm"
-              variant={
-                correspondentContext === opt.value ? "default" : "outline"
-              }
+      {view === "main" && (
+        <>
+          {/* Length selector */}
+          <div className="group/row mt-2 mb-2 flex items-center justify-between gap-3 px-1">
+            <label
+              className="font-medium text-foreground/88 text-sm transition-colors duration-200 group-hover/row:text-foreground"
+              htmlFor="length-group"
             >
-              {correspondentContext === opt.value &&
-              mailboxHistoryPreviewLoading &&
-              opt.value !== "off" ? (
-                <Loader2
-                  aria-hidden
-                  className="size-3 shrink-0 animate-spin opacity-90"
-                />
-              ) : (
-                <span className="font-medium tabular-nums">{opt.label}</span>
-              )}
-            </Button>
-          ))}
-        </div>
-      </div>
-
-      {mailboxHistoryUnsupported ? (
-        <p className="mb-3 px-1 text-[11px] text-muted-foreground leading-snug">
-          Mailbox search is unavailable for this Outlook account/client, so
-          History stays on <span className="font-medium">Off</span> here. Use
-          Outlook on the web or Windows with Microsoft 365 for full mailbox
-          search.
-        </p>
-      ) : null}
-
-      {mailboxHistoryHostBanner ? (
-        <div className="mb-3 rounded-lg border border-amber-500/35 bg-amber-500/5 px-3 py-2.5 text-amber-950 text-xs leading-snug transition-[border-color,background-color,box-shadow,color] duration-200 hover:border-amber-500/50 hover:bg-amber-500/10 hover:text-amber-950 hover:shadow-sm dark:border-amber-500/25 dark:bg-amber-950/40 dark:text-amber-50 dark:hover:border-amber-400/40 dark:hover:bg-amber-950/60 dark:hover:text-amber-50">
-          <p className="mb-1.5 font-medium">
-            Mailbox history isn’t available in this Outlook setup
-          </p>
-          <p className="mb-2 text-[11px] opacity-95">
-            Outlook couldn’t get a token to search your mailbox for past
-            messages with this contact. That usually happens with{" "}
-            <span className="font-medium">
-              Gmail or other IMAP accounts in Outlook for Mac
-            </span>
-            — not a bug in MailAI.{" "}
-            <span className="font-medium">Leave History on Off</span>: replies
-            still use the <span className="font-medium">open conversation</span>
-            . For full mailbox search, use{" "}
-            <span className="font-medium">Outlook on the web</span> or{" "}
-            <span className="font-medium">Outlook for Windows</span> with an{" "}
-            <span className="font-medium">Exchange or Microsoft 365</span>{" "}
-            mailbox.
-          </p>
-          <Button
-            className="h-7 text-[11px]"
-            onClick={() => {
-              setMailboxHistoryHostBanner(false);
-              try {
-                sessionStorage.setItem(
-                  MAILAI_SESSION_HISTORY_UNSUPPORTED_DISMISSED,
-                  "1"
-                );
-              } catch {
-                /* empty */
-              }
-            }}
-            size="sm"
-            type="button"
-            variant="outline"
-          >
-            Dismiss
-          </Button>
-        </div>
-      ) : null}
-
-      {/* Generate button */}
-      <GenerateAiReplyButton
-        isGenerating={isGenerating}
-        onGenerate={generateReply}
-      />
-
-      {/* Thread + mailbox context sent to the model */}
-      {emailChain && (
-        <div className="group/row mt-2 mb-2 px-1">
-          <button
-            aria-expanded={contextHistoryExpanded}
-            className="group/panel-head flex w-full items-center justify-between gap-2 rounded-md px-0 py-0 text-left transition-[background-color,color] duration-200 hover:bg-muted/25"
-            onClick={() => setContextHistoryExpanded((prev) => !prev)}
-            type="button"
-          >
-            <span className="flex min-w-0 flex-1 items-center gap-2 font-medium text-foreground/88 text-sm transition-colors duration-200 group-hover/panel-head:text-foreground">
-              <ScrollText className="size-4 shrink-0 opacity-80 transition-opacity duration-200 group-hover/panel-head:opacity-100" />
-              <span className="min-w-0 truncate">
-                Context history
-                <span className="font-normal text-muted-foreground transition-colors duration-200 group-hover/panel-head:text-foreground/90">
-                  {" "}
-                  ({emailChain.messages.length}
-                  {correspondentContext !== "off"
-                    ? ` · ${CORRESPONDENT_CONTEXT_OPTIONS.find((o) => o.value === correspondentContext)?.label ?? correspondentContext} context`
-                    : ""}
-                  )
-                </span>
-              </span>
-            </span>
-            {contextHistoryExpanded ? (
-              <ChevronDown className="size-4 shrink-0 text-muted-foreground transition-colors duration-200 group-hover/panel-head:text-foreground/90" />
-            ) : (
-              <ChevronRight className="size-4 shrink-0 text-muted-foreground transition-colors duration-200 group-hover/panel-head:text-foreground/90" />
-            )}
-          </button>
-
-          {contextHistoryExpanded && (
-            <div className="mt-1 space-y-1.5">
-              <div>
-                <p className="mb-0.5 font-medium text-muted-foreground text-sm transition-colors duration-200 hover:text-foreground/90">
-                  This thread
-                </p>
-                <div className="max-h-48 space-y-1 overflow-y-auto pr-0.5">
-                  {emailChain.messages.map((msg) => {
-                    const plain = msg.isHtml ? stripHtml(msg.body) : msg.body;
-                    const compact = compactChainBody(plain);
-                    const meta = extractChainMeta(compact);
-                    const primaryFrom = meta.from ?? msg.from;
-                    const dateText = meta.date;
-                    const subjectText = meta.subject;
-                    return (
-                      <div
-                        className="group/msg rounded-sm border border-white/10 bg-background/30 px-1.5 py-1 transition-[border-color,background-color,box-shadow,color,filter] duration-200 hover:border-white/22 hover:bg-background/48 hover:text-foreground/95 hover:shadow-sm group-hover/msg:[&_.mailai-meta-muted]:text-foreground/85"
-                        key={msg.id}
+              Reply Length
+            </label>
+            <TooltipProvider>
+              {/* biome-ignore lint/a11y/useSemanticElements: segmented control; fieldset breaks tooltip layout */}
+              <div
+                className="inline-flex overflow-hidden rounded-md border border-white/10 bg-background/40 transition-[background-color,border-color,box-shadow] duration-200 hover:border-white/22 hover:bg-background/55 hover:shadow-sm"
+                id="length-group"
+                role="group"
+              >
+                {LENGTHS.map((l) => (
+                  <Tooltip key={l.value}>
+                    <TooltipTrigger asChild>
+                      <Button
+                        aria-label={l.label}
+                        className="rounded-none border-y-0 border-r-0 border-l first:rounded-l-md last:rounded-r-md"
+                        onClick={() => setLength(l.value)}
+                        size="icon-xs"
+                        variant={length === l.value ? "default" : "outline"}
                       >
-                        <div className="mb-1 rounded-sm border border-border/70 bg-muted/35 px-1 py-0.5 text-[10px] leading-snug transition-[border-color,background-color] duration-200 group-hover/msg:border-border group-hover/msg:bg-muted/45">
-                          <div className="truncate text-foreground/90">
-                            <span className="mailai-meta-muted text-muted-foreground/90 transition-colors duration-200">
-                              From:
-                            </span>{" "}
-                            <span className="font-medium">{primaryFrom}</span>
-                          </div>
-                          {dateText && (
-                            <div className="truncate text-muted-foreground/90">
-                              <span className="mailai-meta-muted text-muted-foreground/80 transition-colors duration-200">
-                                Date:
-                              </span>{" "}
-                              {dateText}
-                            </div>
-                          )}
-                          {subjectText && (
-                            <div className="truncate text-muted-foreground/90">
-                              <span className="mailai-meta-muted text-muted-foreground/80 transition-colors duration-200">
-                                Subject:
-                              </span>{" "}
-                              {subjectText}
-                            </div>
-                          )}
-                        </div>
-                        <div className="wrap-break-word whitespace-pre-wrap text-[11px] leading-snug transition-colors duration-200 group-hover/msg:text-foreground/95">
-                          {compact}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
+                        {preferenceIcon(
+                          l.value,
+                          l.value === "auto" && isResolvingLength
+                        )}
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      {REPLY_LENGTH_TITLES[l.value]}
+                    </TooltipContent>
+                  </Tooltip>
+                ))}
               </div>
+            </TooltipProvider>
+          </div>
 
-              {correspondentContext !== "off" && (
-                <div>
-                  <p className="mb-0.5 font-medium text-muted-foreground text-sm transition-colors duration-200 hover:text-foreground/90">
-                    Mailbox history (briefing text)
-                  </p>
-                  {historyPhaseRows.length > 0 ? (
-                    <ul className="mb-1.5 space-y-0.5">
-                      {historyPhaseRows.map((row) => (
-                        <li
-                          className="flex items-center gap-1.5 rounded-sm px-1 py-0.5 text-[10px] text-muted-foreground transition-[color,background-color] duration-200 hover:bg-muted/40 hover:text-foreground/90"
-                          key={row.label}
-                        >
-                          {row.status === "done" ? (
-                            <Check
-                              aria-hidden
-                              className="size-3 shrink-0 text-emerald-600 dark:text-emerald-400"
-                            />
-                          ) : null}
-                          {row.status === "loading" ? (
-                            <Loader2
-                              aria-hidden
-                              className="size-3 shrink-0 animate-spin"
-                            />
-                          ) : null}
-                          {row.status === "pending" ? (
-                            <span
-                              aria-hidden
-                              className="inline-block size-3 shrink-0 rounded-full border border-muted-foreground/35"
-                            />
-                          ) : null}
-                          <span className="text-foreground/85">
-                            {row.label}
-                          </span>
-                        </li>
-                      ))}
-                    </ul>
-                  ) : null}
-                  <MailboxHistoryPreviewBody
-                    cache={mailboxHistoryPreviewCache}
-                    loading={mailboxHistoryPreviewLoading}
-                  />
+          {/* Tone selector */}
+          <div className="group/row mb-3 flex items-center justify-between gap-3 px-1">
+            <label
+              className="font-medium text-foreground/88 text-sm transition-colors duration-200 group-hover/row:text-foreground"
+              htmlFor="tone-group"
+            >
+              Reply Tone
+            </label>
+            <TooltipProvider>
+              {/* biome-ignore lint/a11y/useSemanticElements: segmented control; fieldset breaks tooltip layout */}
+              <div
+                className="inline-flex overflow-hidden rounded-md border border-white/10 bg-background/40 transition-[background-color,border-color,box-shadow] duration-200 hover:border-white/22 hover:bg-background/55 hover:shadow-sm"
+                id="tone-group"
+                role="group"
+              >
+                {TONES.map((t) => (
+                  <Tooltip key={t.value}>
+                    <TooltipTrigger asChild>
+                      <Button
+                        aria-label={t.label}
+                        className="rounded-none border-y-0 border-r-0 border-l first:rounded-l-md last:rounded-r-md"
+                        onClick={() => setTone(t.value)}
+                        size="icon-xs"
+                        variant={tone === t.value ? "default" : "outline"}
+                      >
+                        {preferenceIcon(
+                          t.value,
+                          t.value === "auto" && isResolvingTone
+                        )}
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      {REPLY_TONE_TITLES[t.value]}
+                    </TooltipContent>
+                  </Tooltip>
+                ))}
+              </div>
+            </TooltipProvider>
+          </div>
+
+          {resolutionError ? (
+            <div className="mb-3 px-1 text-[11px] text-destructive leading-none">
+              {resolutionError}
+            </div>
+          ) : null}
+
+          {/* Correspondent mailbox context (Outlook REST) */}
+          <div className="group/row mb-3 flex items-center justify-between gap-3 px-1">
+            <div className="flex min-w-0 items-center gap-1.5">
+              <label
+                className="font-medium text-foreground/88 text-sm transition-colors duration-200 group-hover/row:text-foreground"
+                htmlFor="correspondent-context-group"
+              >
+                History
+              </label>
+            </div>
+            {/* biome-ignore lint/a11y/useSemanticElements: segmented control group */}
+            <div
+              className="inline-flex max-w-[min(100%,220px)] flex-wrap justify-end gap-0 overflow-hidden rounded-md border border-white/10 bg-background/40 transition-[background-color,border-color,box-shadow] duration-200 hover:border-white/22 hover:bg-background/55 hover:shadow-sm sm:max-w-none sm:flex-nowrap"
+              id="correspondent-context-group"
+              role="group"
+            >
+              {CORRESPONDENT_CONTEXT_OPTIONS.map((opt) => (
+                <Button
+                  aria-label={`History: ${opt.label}`}
+                  className="h-7 min-w-8 gap-1 rounded-none border-y-0 border-r-0 border-l px-2 text-[10px] first:rounded-l-md last:rounded-r-md"
+                  disabled={mailboxHistoryUnsupported && opt.value !== "off"}
+                  key={opt.value}
+                  onClick={() => setCorrespondentContext(opt.value)}
+                  size="sm"
+                  variant={
+                    correspondentContext === opt.value ? "default" : "outline"
+                  }
+                >
+                  {correspondentContext === opt.value &&
+                  mailboxHistoryPreviewLoading &&
+                  opt.value !== "off" ? (
+                    <Loader2
+                      aria-hidden
+                      className="size-3 shrink-0 animate-spin opacity-90"
+                    />
+                  ) : (
+                    <span className="font-medium tabular-nums">
+                      {opt.label}
+                    </span>
+                  )}
+                </Button>
+              ))}
+            </div>
+          </div>
+
+          {mailboxHistoryUnsupported ? (
+            <p className="mb-3 px-1 text-[11px] text-muted-foreground leading-snug">
+              Mailbox search is unavailable for this Outlook account/client, so
+              History stays on <span className="font-medium">Off</span> here.
+              Use Outlook on the web or Windows with Microsoft 365 for full
+              mailbox search.
+            </p>
+          ) : null}
+
+          {mailboxHistoryHostBanner ? (
+            <div className="mb-3 rounded-lg border border-amber-500/35 bg-amber-500/5 px-3 py-2.5 text-amber-950 text-xs leading-snug transition-[border-color,background-color,box-shadow,color] duration-200 hover:border-amber-500/50 hover:bg-amber-500/10 hover:text-amber-950 hover:shadow-sm dark:border-amber-500/25 dark:bg-amber-950/40 dark:text-amber-50 dark:hover:border-amber-400/40 dark:hover:bg-amber-950/60 dark:hover:text-amber-50">
+              <p className="mb-1.5 font-medium">
+                Mailbox history isn’t available in this Outlook setup
+              </p>
+              <p className="mb-2 text-[11px] opacity-95">
+                Outlook couldn’t get a token to search your mailbox for past
+                messages with this contact. That usually happens with{" "}
+                <span className="font-medium">
+                  Gmail or other IMAP accounts in Outlook for Mac
+                </span>
+                — not a bug in MailAI.{" "}
+                <span className="font-medium">Leave History on Off</span>:
+                replies still use the{" "}
+                <span className="font-medium">open conversation</span>. For full
+                mailbox search, use{" "}
+                <span className="font-medium">Outlook on the web</span> or{" "}
+                <span className="font-medium">Outlook for Windows</span> with an{" "}
+                <span className="font-medium">Exchange or Microsoft 365</span>{" "}
+                mailbox.
+              </p>
+              <Button
+                className="h-7 text-[11px]"
+                onClick={() => {
+                  setMailboxHistoryHostBanner(false);
+                  try {
+                    sessionStorage.setItem(
+                      MAILAI_SESSION_HISTORY_UNSUPPORTED_DISMISSED,
+                      "1"
+                    );
+                  } catch {
+                    /* empty */
+                  }
+                }}
+                size="sm"
+                type="button"
+                variant="outline"
+              >
+                Dismiss
+              </Button>
+            </div>
+          ) : null}
+
+          {/* Generate button */}
+          <GenerateAiReplyButton
+            isGenerating={isGenerating}
+            onGenerate={generateReply}
+          />
+
+          {/* Thread + mailbox context sent to the model */}
+          {emailChain && (
+            <div className="group/row mt-2 mb-2 px-1">
+              <button
+                aria-expanded={contextHistoryExpanded}
+                className="group/panel-head flex w-full items-center justify-between gap-2 rounded-md px-0 py-0 text-left transition-[background-color,color] duration-200 hover:bg-muted/25"
+                onClick={() => setContextHistoryExpanded((prev) => !prev)}
+                type="button"
+              >
+                <span className="flex min-w-0 flex-1 items-center gap-2 font-medium text-foreground/88 text-sm transition-colors duration-200 group-hover/panel-head:text-foreground">
+                  <ScrollText className="size-4 shrink-0 opacity-80 transition-opacity duration-200 group-hover/panel-head:opacity-100" />
+                  <span className="min-w-0 truncate">
+                    Context history
+                    <span className="font-normal text-muted-foreground transition-colors duration-200 group-hover/panel-head:text-foreground/90">
+                      {" "}
+                      ({emailChain.messages.length}
+                      {correspondentContext !== "off"
+                        ? ` · ${CORRESPONDENT_CONTEXT_OPTIONS.find((o) => o.value === correspondentContext)?.label ?? correspondentContext} context`
+                        : ""}
+                      )
+                    </span>
+                  </span>
+                </span>
+                {contextHistoryExpanded ? (
+                  <ChevronDown className="size-4 shrink-0 text-muted-foreground transition-colors duration-200 group-hover/panel-head:text-foreground/90" />
+                ) : (
+                  <ChevronRight className="size-4 shrink-0 text-muted-foreground transition-colors duration-200 group-hover/panel-head:text-foreground/90" />
+                )}
+              </button>
+
+              {contextHistoryExpanded && (
+                <div className="mt-1 space-y-1.5">
+                  <div>
+                    <p className="mb-0.5 font-medium text-muted-foreground text-sm transition-colors duration-200 hover:text-foreground/90">
+                      This thread
+                    </p>
+                    <div className="max-h-48 space-y-1 overflow-y-auto pr-0.5">
+                      {emailChain.messages.map((msg) => {
+                        const plain = msg.isHtml
+                          ? stripHtml(msg.body)
+                          : msg.body;
+                        const compact = compactChainBody(plain);
+                        const meta = extractChainMeta(compact);
+                        const primaryFrom = meta.from ?? msg.from;
+                        const dateText = meta.date;
+                        const subjectText = meta.subject;
+                        return (
+                          <div
+                            className="group/msg rounded-sm border border-white/10 bg-background/30 px-1.5 py-1 transition-[border-color,background-color,box-shadow,color,filter] duration-200 hover:border-white/22 hover:bg-background/48 hover:text-foreground/95 hover:shadow-sm group-hover/msg:[&_.mailai-meta-muted]:text-foreground/85"
+                            key={msg.id}
+                          >
+                            <div className="mb-1 rounded-sm border border-border/70 bg-muted/35 px-1 py-0.5 text-[10px] leading-snug transition-[border-color,background-color] duration-200 group-hover/msg:border-border group-hover/msg:bg-muted/45">
+                              <div className="truncate text-foreground/90">
+                                <span className="mailai-meta-muted text-muted-foreground/90 transition-colors duration-200">
+                                  From:
+                                </span>{" "}
+                                <span className="font-medium">
+                                  {primaryFrom}
+                                </span>
+                              </div>
+                              {dateText && (
+                                <div className="truncate text-muted-foreground/90">
+                                  <span className="mailai-meta-muted text-muted-foreground/80 transition-colors duration-200">
+                                    Date:
+                                  </span>{" "}
+                                  {dateText}
+                                </div>
+                              )}
+                              {subjectText && (
+                                <div className="truncate text-muted-foreground/90">
+                                  <span className="mailai-meta-muted text-muted-foreground/80 transition-colors duration-200">
+                                    Subject:
+                                  </span>{" "}
+                                  {subjectText}
+                                </div>
+                              )}
+                            </div>
+                            <div className="wrap-break-word whitespace-pre-wrap text-[11px] leading-snug transition-colors duration-200 group-hover/msg:text-foreground/95">
+                              {compact}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {correspondentContext !== "off" && (
+                    <div>
+                      <p className="mb-0.5 font-medium text-muted-foreground text-sm transition-colors duration-200 hover:text-foreground/90">
+                        Mailbox history (briefing text)
+                      </p>
+                      {historyPhaseRows.length > 0 ? (
+                        <ul className="mb-1.5 space-y-0.5">
+                          {historyPhaseRows.map((row) => (
+                            <li
+                              className="flex items-center gap-1.5 rounded-sm px-1 py-0.5 text-[10px] text-muted-foreground transition-[color,background-color] duration-200 hover:bg-muted/40 hover:text-foreground/90"
+                              key={row.label}
+                            >
+                              {row.status === "done" ? (
+                                <Check
+                                  aria-hidden
+                                  className="size-3 shrink-0 text-emerald-600 dark:text-emerald-400"
+                                />
+                              ) : null}
+                              {row.status === "loading" ? (
+                                <Loader2
+                                  aria-hidden
+                                  className="size-3 shrink-0 animate-spin"
+                                />
+                              ) : null}
+                              {row.status === "pending" ? (
+                                <span
+                                  aria-hidden
+                                  className="inline-block size-3 shrink-0 rounded-full border border-muted-foreground/35"
+                                />
+                              ) : null}
+                              <span className="text-foreground/85">
+                                {row.label}
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
+                      ) : null}
+                      <MailboxHistoryPreviewBody
+                        cache={mailboxHistoryPreviewCache}
+                        loading={mailboxHistoryPreviewLoading}
+                      />
+                    </div>
+                  )}
+
+                  {correspondentContext === "off" && (
+                    <p className="text-[10px] text-muted-foreground leading-snug transition-colors duration-200 hover:text-foreground/88">
+                      Turn on a <span className="font-medium">History</span>{" "}
+                      range above to include other messages with this contact in
+                      the AI briefing.
+                    </p>
+                  )}
                 </div>
-              )}
-
-              {correspondentContext === "off" && (
-                <p className="text-[10px] text-muted-foreground leading-snug transition-colors duration-200 hover:text-foreground/88">
-                  Turn on a <span className="font-medium">History</span> range
-                  above to include other messages with this contact in the AI
-                  briefing.
-                </p>
               )}
             </div>
           )}
-        </div>
-      )}
 
-      <div className="mb-2 border-white/10 border-t" />
-      {/* Additional context (collapsed by default) */}
-      <div className="group/row mb-2 px-1">
-        <button
-          className="group/panel-head flex w-full items-center justify-between gap-2 rounded-md px-0 py-0 text-left transition-[background-color,color] duration-200 hover:bg-muted/25"
-          onClick={() => setContextExpanded((prev) => !prev)}
-          type="button"
-        >
-          <span className="flex min-w-0 flex-1 items-center gap-2 font-medium text-foreground/88 text-sm transition-colors duration-200 group-hover/panel-head:text-foreground">
-            <PenLine className="size-4 shrink-0 opacity-80 transition-opacity duration-200 group-hover/panel-head:opacity-100" />
-            Additional context
-          </span>
-          {contextExpanded ? (
-            <ChevronDown className="size-4 shrink-0 text-muted-foreground transition-colors duration-200 group-hover/panel-head:text-foreground/90" />
-          ) : (
-            <ChevronRight className="size-4 shrink-0 text-muted-foreground transition-colors duration-200 group-hover/panel-head:text-foreground/90" />
+          <div className="mb-2 border-white/10 border-t" />
+          {/* Additional context (collapsed by default) */}
+          <div className="group/row mb-2 px-1">
+            <button
+              className="group/panel-head flex w-full items-center justify-between gap-2 rounded-md px-0 py-0 text-left transition-[background-color,color] duration-200 hover:bg-muted/25"
+              onClick={() => setContextExpanded((prev) => !prev)}
+              type="button"
+            >
+              <span className="flex min-w-0 flex-1 items-center gap-2 font-medium text-foreground/88 text-sm transition-colors duration-200 group-hover/panel-head:text-foreground">
+                <PenLine className="size-4 shrink-0 opacity-80 transition-opacity duration-200 group-hover/panel-head:opacity-100" />
+                Additional context
+              </span>
+              {contextExpanded ? (
+                <ChevronDown className="size-4 shrink-0 text-muted-foreground transition-colors duration-200 group-hover/panel-head:text-foreground/90" />
+              ) : (
+                <ChevronRight className="size-4 shrink-0 text-muted-foreground transition-colors duration-200 group-hover/panel-head:text-foreground/90" />
+              )}
+            </button>
+            {contextExpanded && (
+              <textarea
+                className="mt-1 min-h-24 w-full resize-none rounded-md border border-input bg-transparent px-1 py-1 text-[11px] leading-snug outline-none transition-[border-color,box-shadow,color] duration-200 placeholder:text-muted-foreground/70 hover:border-input hover:text-foreground hover:shadow-sm focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30"
+                id="context-input"
+                onChange={(e) =>
+                  setAdditionalContext((e.target as HTMLTextAreaElement).value)
+                }
+                placeholder="Optional: constraints, points to mention, or preferred phrasing..."
+                value={additionalContext}
+              />
+            )}
+          </div>
+          {/* Error display */}
+          {error && (
+            <div className="mb-3 rounded-md border border-destructive/50 bg-destructive/10 p-2 text-destructive text-xs transition-[border-color,background-color,box-shadow,color] duration-200 hover:border-destructive/65 hover:bg-destructive/15 hover:text-destructive hover:shadow-sm">
+              {error}
+            </div>
           )}
-        </button>
-        {contextExpanded && (
-          <textarea
-            className="mt-1 min-h-24 w-full resize-none rounded-md border border-input bg-transparent px-1 py-1 text-[11px] leading-snug outline-none transition-[border-color,box-shadow,color] duration-200 placeholder:text-muted-foreground/70 hover:border-input hover:text-foreground hover:shadow-sm focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30"
-            id="context-input"
-            onChange={(e) =>
-              setAdditionalContext((e.target as HTMLTextAreaElement).value)
-            }
-            placeholder="Optional: constraints, points to mention, or preferred phrasing..."
-            value={additionalContext}
-          />
-        )}
-      </div>
-      {/* Error display */}
-      {error && (
-        <div className="mb-3 rounded-md border border-destructive/50 bg-destructive/10 p-2 text-destructive text-xs transition-[border-color,background-color,box-shadow,color] duration-200 hover:border-destructive/65 hover:bg-destructive/15 hover:text-destructive hover:shadow-sm">
-          {error}
-        </div>
+        </>
       )}
 
       {/* Bottom fixed toast (sonner-style lightweight) */}
