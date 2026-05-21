@@ -45,7 +45,9 @@ async function parsePdf(buffer: Buffer): Promise<string> {
   // pdf-parse v2 exposes a PDFParse class (not a default-exported function as
   // in v1). Instantiate with { data } then call getText().
   const mod = (await import("pdf-parse")) as {
-    PDFParse: new (opts: { data: Buffer }) => {
+    PDFParse: new (opts: {
+      data: Buffer;
+    }) => {
       getText: () => Promise<{ text?: string }>;
       destroy: () => void;
     };
