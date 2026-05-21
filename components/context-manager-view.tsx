@@ -2,6 +2,10 @@
 
 import { useAction, useMutation, useQuery } from "convex/react";
 import {
+  AlertCircle,
+  ChevronDown,
+  ChevronRight,
+  Eye,
   FileUp,
   Loader2,
   Plus,
@@ -11,7 +15,7 @@ import {
   Trash2,
   X,
 } from "lucide-react";
-import { type ChangeEvent, useMemo, useRef, useState } from "react";
+import { type ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -75,6 +79,8 @@ export function ContextManagerView({
   const [savingNote, setSavingNote] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const autoSyncedFor = useRef<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const normalizedEmail = email.trim().toLowerCase();
@@ -82,6 +88,10 @@ export function ContextManagerView({
   const items = useQuery(
     api.context.listByCorrespondent,
     normalizedEmail ? { email: normalizedEmail } : "skip"
+  );
+  const composed = useQuery(
+    api.context.composeBriefingForCorrespondent,
+    previewOpen && normalizedEmail ? { email: normalizedEmail } : "skip"
   );
   const setOverride = useMutation(api.context.setUserOverride);
   const bulkSetOverride = useMutation(api.context.bulkSetUserOverride);
@@ -134,27 +144,55 @@ export function ContextManagerView({
     };
   }, [items]);
 
-  const handleSync = async () => {
+  const handleSync = async (silent = false) => {
     if (!normalizedEmail) {
       return;
     }
     setSyncing(true);
-    setSyncMessage(null);
+    if (!silent) {
+      setSyncMessage(null);
+    }
     try {
-      const result = await syncTsprr({ email: normalizedEmail, force: true });
-      setSyncMessage(
-        result.cached
-          ? "Already fresh — no new data pulled."
-          : `Synced ${result.itemsWritten} item(s) from TSP-RR.`
-      );
+      const result = await syncTsprr({
+        email: normalizedEmail,
+        force: !silent,
+      });
+      if (!silent) {
+        setSyncMessage(
+          result.cached
+            ? "Already fresh — no new data pulled."
+            : `Synced ${result.itemsWritten} item(s) from TSP-RR.`
+        );
+      }
     } catch (err) {
-      setSyncMessage(
-        err instanceof Error ? err.message : "TSP-RR sync failed."
-      );
+      const msg = err instanceof Error ? err.message : "TSP-RR sync failed.";
+      setSyncMessage(msg);
     } finally {
       setSyncing(false);
     }
   };
+
+  // Auto-trigger one TSP-RR sync the first time we land on a correspondent
+  // that has no items yet. Silent — failures surface in the sync banner only
+  // when the user explicitly clicks Sync.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: handleSync closes over normalizedEmail; re-runs only need to fire on correspondent/items changes.
+  useEffect(() => {
+    if (!normalizedEmail || items === undefined) {
+      return;
+    }
+    if (autoSyncedFor.current === normalizedEmail) {
+      return;
+    }
+    const hasTsprr = items.some((i) => i.source === "tsprr");
+    if (hasTsprr) {
+      autoSyncedFor.current = normalizedEmail;
+      return;
+    }
+    autoSyncedFor.current = normalizedEmail;
+    handleSync(true).catch(() => {
+      /* surfaced via syncMessage state */
+    });
+  }, [normalizedEmail, items]);
 
   const handleToggle = async (
     item: Doc<"contextItems">,
@@ -305,7 +343,7 @@ export function ContextManagerView({
           </div>
           <Button
             disabled={syncing}
-            onClick={handleSync}
+            onClick={() => handleSync(false)}
             size={compact ? "sm" : "default"}
             variant="secondary"
           >
@@ -318,9 +356,62 @@ export function ContextManagerView({
           </Button>
         </div>
         {syncMessage && (
-          <p className="text-muted-foreground text-xs">{syncMessage}</p>
+          <div
+            className={`flex items-start gap-1.5 rounded-md px-2 py-1.5 text-xs ${syncMessage.includes("failed") || syncMessage.includes("Error") || syncMessage.includes("not set") ? "bg-rose-500/10 text-rose-700 dark:text-rose-300" : "text-muted-foreground"}`}
+          >
+            {(syncMessage.includes("failed") ||
+              syncMessage.includes("Error") ||
+              syncMessage.includes("not set")) && (
+              <AlertCircle className="mt-0.5 size-3.5 shrink-0" />
+            )}
+            <span>{syncMessage}</span>
+          </div>
         )}
       </div>
+
+      <button
+        className="-mx-1 flex items-center gap-1.5 self-start rounded px-1 py-0.5 text-muted-foreground text-xs transition-colors hover:bg-muted hover:text-foreground"
+        onClick={() => setPreviewOpen((v) => !v)}
+        type="button"
+      >
+        {previewOpen ? (
+          <ChevronDown className="size-3.5" />
+        ) : (
+          <ChevronRight className="size-3.5" />
+        )}
+        <Eye className="size-3.5" />
+        Preview the context the AI will see
+      </button>
+      {previewOpen && (
+        <Card>
+          <CardContent className="p-3">
+            {composed === undefined && (
+              <div className="flex items-center text-muted-foreground text-xs">
+                <Loader2 className="mr-2 size-4 animate-spin" />
+                Composing…
+              </div>
+            )}
+            {composed && !composed.contextBlock && (
+              <p className="text-muted-foreground text-xs">
+                Nothing included yet — toggle some items on (or sync TSP-RR) to
+                see the briefing the AI will read.
+              </p>
+            )}
+            {composed?.contextBlock && (
+              <>
+                <div className="mb-2 text-muted-foreground text-xs">
+                  {composed.includedCount} included · {composed.excludedCount}{" "}
+                  excluded · ~{composed.contextBlock.length} chars (≈{" "}
+                  {Math.round(composed.contextBlock.length / 4)} tokens)
+                </div>
+                <pre className="max-h-96 overflow-auto whitespace-pre-wrap rounded bg-muted/40 p-2 text-[11px] leading-snug">
+                  {composed.contextBlock}
+                </pre>
+              </>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       <div className="flex flex-wrap items-center gap-2">
         <SourceTabs onChange={setSourceFilter} value={sourceFilter} />
