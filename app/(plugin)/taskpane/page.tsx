@@ -124,6 +124,11 @@ async function fetchContextBlock(opts: {
   }
   try {
     const client = new ConvexHttpClient(convexUrl);
+    const portfolioJob = client
+      .action(api.tsprrSync.syncTsprrPortfolio, {})
+      .catch((err: unknown) => {
+        console.warn("[mailai/taskpane] portfolio sync failed", err);
+      });
     const tsprrJob = client
       .action(api.tsprrSync.syncTsprrForCorrespondent, { email })
       .catch((err: unknown) => {
@@ -135,7 +140,7 @@ async function fetchContextBlock(opts: {
       window: opts.historyWindow,
       brief: opts.correspondentHistoryRaw,
     });
-    await Promise.all([tsprrJob, outlookJob]);
+    await Promise.all([portfolioJob, tsprrJob, outlookJob]);
     const composed = await client.query(
       api.context.composeBriefingForCorrespondent,
       { email }

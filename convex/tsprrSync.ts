@@ -486,6 +486,416 @@ export const syncTsprrForCorrespondent = action({
   },
 });
 
+const GLOBAL_PORTFOLIO_EMAIL = "__global__";
+const PORTFOLIO_OPEN_TICKET_LIMIT = 40;
+const PORTFOLIO_OPEN_TICKET_STATUSES = new Set([
+  "completed",
+  "cancelled",
+  "rejected",
+  "closed",
+  "merged",
+]);
+
+interface BuildingRow extends Json {
+  building_name: string | null;
+  id: string;
+  postal_code: string | null;
+  street_name: string | null;
+  tags: string[] | null;
+}
+
+function buildPortfolioSummaryItem(args: {
+  buildings: BuildingRow[];
+  unitsByStatus: Record<string, number>;
+  totalUnits: number;
+  totalActiveTenants: number;
+  monthlyRentRoll: number;
+  outstandingBalance: number;
+}): SyncItem {
+  const {
+    buildings,
+    unitsByStatus,
+    totalUnits,
+    totalActiveTenants,
+    monthlyRentRoll,
+    outstandingBalance,
+  } = args;
+  const buildingLines = buildings
+    .slice(0, 12)
+    .map((b) => {
+      const tag = b.tags?.length ? ` [${b.tags.join(", ")}]` : "";
+      return `- ${b.building_name ?? "(unnamed building)"} on ${b.street_name ?? "?"} ${b.postal_code ?? ""}${tag}`;
+    })
+    .join("\n");
+  const statusLines = Object.entries(unitsByStatus)
+    .map(([s, c]) => `${s || "unset"}: ${c}`)
+    .join(", ");
+  const body = [
+    "Portfolio summary for the operator (TSP-RR data).",
+    `Buildings: ${buildings.length}, units: ${totalUnits} (${statusLines || "—"})`,
+    `Active tenants: ${totalActiveTenants}`,
+    `Approx monthly rent roll: ${fmtMoney(monthlyRentRoll)}`,
+    `Total outstanding balance across accounts: ${fmtMoney(outstandingBalance)}`,
+    buildingLines.length > 0 ? `\nBuildings:\n${buildingLines}` : null,
+  ]
+    .filter(Boolean)
+    .join("\n");
+  return {
+    correspondentEmail: GLOBAL_PORTFOLIO_EMAIL,
+    source: "tsprr",
+    kind: "portfolio_summary",
+    externalId: "portfolio:summary",
+    title: `Portfolio: ${buildings.length} buildings · ${totalUnits} units · ${totalActiveTenants} active tenants`,
+    snippet: `${fmtMoney(monthlyRentRoll)}/mo rent roll · ${fmtMoney(outstandingBalance)} outstanding`,
+    bodyForPrompt: body,
+    occurredAt: Date.now(),
+    defaultRelevant: true,
+    raw: sanitizeForConvex({
+      buildings,
+      unitsByStatus,
+      totalUnits,
+      totalActiveTenants,
+      monthlyRentRoll,
+      outstandingBalance,
+    }),
+  };
+}
+
+function buildGlobalTicketItem(t: Json, notes: Json[]): SyncItem {
+  const occurredAt = dateToMs(t.created_at);
+  const notesBlock = notes
+    .map(
+      (n) =>
+        `- (${fmtDate(n.created_at)}) ${typeof n.content === "string" ? n.content.slice(0, 200) : ""}`
+    )
+    .join("\n");
+  return {
+    correspondentEmail: GLOBAL_PORTFOLIO_EMAIL,
+    source: "tsprr",
+    kind: "open_ticket",
+    externalId: `portfolio:ticket:${String(t.id)}`,
+    title: `Open ticket #${t.ticket_number ?? "?"}: ${t.title ?? "(no title)"}`,
+    snippet:
+      `${t.status ?? "?"} · ${t.priority ?? "normal"} · ${t.contact_first_name ?? ""} ${t.contact_last_name ?? ""}`.trim(),
+    bodyForPrompt: [
+      `Ticket #${t.ticket_number ?? "?"}: ${t.title ?? "(no title)"}`,
+      `Status: ${t.status ?? "?"}, priority: ${t.priority ?? "?"}, category: ${t.category ?? "?"}`,
+      t.is_emergency ? "EMERGENCY" : null,
+      t.contact_first_name || t.contact_last_name
+        ? `Reporter: ${[t.contact_first_name, t.contact_last_name].filter(Boolean).join(" ")} <${t.contact_email ?? "?"}>`
+        : null,
+      t.property_unit
+        ? `Unit: ${t.property_unit} at ${t.property_street_number ?? ""} ${t.property_street_name ?? ""}`
+        : null,
+      `Opened: ${fmtDate(t.created_at)}`,
+      t.description
+        ? `Description: ${(t.description as string).slice(0, 320)}`
+        : null,
+      notesBlock ? `Recent notes:\n${notesBlock}` : null,
+    ]
+      .filter(Boolean)
+      .join("\n"),
+    occurredAt,
+    defaultRelevant: true,
+    raw: sanitizeForConvex({ ticket: t, notes }),
+  };
+}
+
+function buildGlobalTerminationItem(n: Json): SyncItem {
+  return {
+    correspondentEmail: GLOBAL_PORTFOLIO_EMAIL,
+    source: "tsprr",
+    kind: "active_termination_notice",
+    externalId: `portfolio:term:${String(n.id)}`,
+    title: `Active N9 termination — ${n.outgoing_last_names ?? "(unknown)"} → ${fmtDate(n.intended_move_out_date)}`,
+    snippet: `${n.notice_type ?? "?"} · ${n.status ?? "?"}`,
+    bodyForPrompt: [
+      `Termination notice (${n.notice_type ?? "?"})`,
+      `Tenant(s): ${n.outgoing_last_names ?? "?"}`,
+      `Submitted by: ${[n.submitter_first_name, n.submitter_last_name].filter(Boolean).join(" ") || "?"}`,
+      `Status: ${n.status ?? "?"}`,
+      n.notice_date ? `Notice date: ${fmtDate(n.notice_date)}` : null,
+      n.intended_move_out_date
+        ? `Intended move-out: ${fmtDate(n.intended_move_out_date)}`
+        : null,
+      n.additional_notes ? `Notes: ${n.additional_notes}` : null,
+    ]
+      .filter(Boolean)
+      .join("\n"),
+    occurredAt: dateToMs(n.notice_date) ?? dateToMs(n.created_at),
+    defaultRelevant: true,
+    raw: sanitizeForConvex(n),
+  };
+}
+
+function buildGlobalProspectItem(p: Json): SyncItem {
+  return {
+    correspondentEmail: GLOBAL_PORTFOLIO_EMAIL,
+    source: "tsprr",
+    kind: "open_prospect",
+    externalId: `portfolio:prospect:${String(p.id)}`,
+    title: `Open prospect — ${p.property_address ?? "(no property)"} [${p.state ?? "?"}]`,
+    snippet: `Move-in ${fmtDate(p.move_in_date)} · source: ${p.source ?? "?"}`,
+    bodyForPrompt: [
+      "Open prospect application",
+      `Property: ${p.property_address ?? "?"}`,
+      `Status: ${p.state ?? "?"}, rating: ${p.rating ?? "?"}`,
+      `Source: ${p.source ?? "?"}`,
+      p.move_in_date ? `Desired move-in: ${fmtDate(p.move_in_date)}` : null,
+      p.offer_amount ? `Offer: ${fmtMoney(p.offer_amount)}` : null,
+      p.open_comments ? `Notes: ${p.open_comments}` : null,
+    ]
+      .filter(Boolean)
+      .join("\n"),
+    occurredAt:
+      dateToMs(p.updated_at) ??
+      dateToMs(p.submitted_at) ??
+      dateToMs(p.created_at),
+    defaultRelevant: true,
+    raw: sanitizeForConvex(p),
+  };
+}
+
+function buildGlobalParkingItem(p: Json): SyncItem {
+  return {
+    correspondentEmail: GLOBAL_PORTFOLIO_EMAIL,
+    source: "tsprr",
+    kind: "active_parking",
+    externalId: `portfolio:parking:${String(p.id)}`,
+    title: `Parking ${p.status ?? "?"}: ${p.vehicle_make ?? ""} ${p.vehicle_model ?? ""} (${p.license_plate ?? "?"})`,
+    snippet: `${fmtDate(p.approved_start_date)} → ${fmtDate(p.approved_end_date)}`,
+    bodyForPrompt: [
+      "Active parking request",
+      `Vehicle: ${p.vehicle_make ?? ""} ${p.vehicle_model ?? ""} (${p.vehicle_color ?? "?"})`,
+      `Plate: ${p.license_plate ?? "?"}`,
+      `Driver: ${p.driver_name ?? "?"} (${p.driver_phone ?? "?"})`,
+      `Status: ${p.status ?? "?"}`,
+      `Window: ${fmtDate(p.approved_start_date)} → ${fmtDate(p.approved_end_date)}`,
+      p.parking_spot ? `Spot: ${p.parking_spot}` : null,
+    ]
+      .filter(Boolean)
+      .join("\n"),
+    occurredAt: dateToMs(p.created_at),
+    defaultRelevant: true,
+    raw: sanitizeForConvex(p),
+  };
+}
+
+/**
+ * Pull operator-level TSP-RR data — buildings, occupancy, open tickets,
+ * active termination notices, parking, prospects — and store it under the
+ * "__global__" sentinel. The composer includes these items in every reply,
+ * regardless of who the correspondent is.
+ *
+ * This is the "context all of TSP-RR" sync: not keyed to the sender, just
+ * the operator's portfolio.
+ */
+export const syncTsprrPortfolio = action({
+  args: { force: v.optional(v.boolean()) },
+  handler: async (
+    ctx,
+    args
+  ): Promise<{
+    cached: boolean;
+    itemsWritten: number;
+    lastSyncedAt: number;
+  }> => {
+    if (!args.force) {
+      const lastRun = await ctx.runQuery(internal.context.getLastSyncBySource, {
+        correspondentEmail: GLOBAL_PORTFOLIO_EMAIL,
+        source: "tsprr",
+      });
+      if (lastRun?.finishedAt && Date.now() - lastRun.finishedAt < FRESH_MS) {
+        return {
+          cached: true,
+          itemsWritten: lastRun.itemsWritten ?? 0,
+          lastSyncedAt: lastRun.finishedAt,
+        };
+      }
+    }
+
+    const connectionString = process.env.TSPRR_DATABASE_URL;
+    if (!connectionString) {
+      throw new Error(
+        "TSPRR_DATABASE_URL is not set. Configure it in Convex env: `npx convex env set TSPRR_DATABASE_URL '<connection string>'`."
+      );
+    }
+
+    const runId: Id<"contextSyncRuns"> = await ctx.runMutation(
+      internal.context.recordSyncStart,
+      { correspondentEmail: GLOBAL_PORTFOLIO_EMAIL, source: "tsprr" }
+    );
+
+    const parsed = new URL(connectionString);
+    const client = new Client({
+      host: parsed.hostname,
+      port: parsed.port ? Number(parsed.port) : 5432,
+      user: decodeURIComponent(parsed.username),
+      password: decodeURIComponent(parsed.password),
+      database: parsed.pathname.replace(LEADING_SLASH_RE, "") || "postgres",
+      ssl: { rejectUnauthorized: false },
+    });
+    const items: SyncItem[] = [];
+    let errMessage: string | undefined;
+
+    try {
+      await client.connect();
+      await portfolioSyncCore(client, items);
+    } catch (err) {
+      errMessage = err instanceof Error ? err.message : String(err);
+    } finally {
+      try {
+        await client.end();
+      } catch {
+        /* ignore */
+      }
+    }
+
+    let written = 0;
+    if (items.length > 0) {
+      written = await ctx.runMutation(internal.context.upsertItemsBulk, {
+        items,
+      });
+    }
+
+    await ctx.runMutation(internal.context.recordSyncFinish, {
+      runId,
+      ok: !errMessage,
+      itemsWritten: written,
+      error: errMessage,
+    });
+
+    if (errMessage) {
+      throw new Error(`Portfolio sync failed: ${errMessage}`);
+    }
+
+    return { cached: false, itemsWritten: written, lastSyncedAt: Date.now() };
+  },
+});
+
+async function portfolioSyncCore(
+  client: Client,
+  out: SyncItem[]
+): Promise<void> {
+  // 1. Buildings
+  const buildingsRes = await client.query<BuildingRow>(
+    `SELECT id::text, building_name, street_name, postal_code, tags
+     FROM public.buildings
+     ORDER BY building_name NULLS LAST
+     LIMIT 50`
+  );
+  const buildings = buildingsRes.rows;
+
+  // 2. Units summary (by status)
+  const unitsRes = await client.query<{ status: string | null; count: string }>(
+    "SELECT status, count(*)::text AS count FROM public.units GROUP BY status"
+  );
+  const unitsByStatus: Record<string, number> = {};
+  let totalUnits = 0;
+  for (const row of unitsRes.rows) {
+    const c = Number(row.count);
+    unitsByStatus[row.status ?? "unset"] = c;
+    totalUnits += c;
+  }
+
+  // 3. Active tenants count
+  const tenantsRes = await client.query<{ count: string }>(
+    "SELECT count(*)::text AS count FROM public.tenants WHERE status = 'Active'"
+  );
+  const totalActiveTenants = Number(tenantsRes.rows[0]?.count ?? 0);
+
+  // 4. Rent roll + outstanding balance
+  const rentRollRes = await client.query<{ sum: string | null }>(
+    "SELECT sum(current_rent::numeric)::text AS sum FROM public.units WHERE status IN ('Active', 'On Market')"
+  );
+  const monthlyRentRoll = Number(rentRollRes.rows[0]?.sum ?? 0);
+
+  const balanceRes = await client.query<{ sum: string | null }>(
+    "SELECT sum(balance)::text AS sum FROM public.canonical_account_balances WHERE balance > 0"
+  );
+  const outstandingBalance = Number(balanceRes.rows[0]?.sum ?? 0);
+
+  out.push(
+    buildPortfolioSummaryItem({
+      buildings,
+      unitsByStatus,
+      totalUnits,
+      totalActiveTenants,
+      monthlyRentRoll,
+      outstandingBalance,
+    })
+  );
+
+  // 5. Open maintenance tickets
+  const closedListSql = Array.from(PORTFOLIO_OPEN_TICKET_STATUSES)
+    .map((_, i) => `$${i + 1}`)
+    .join(", ");
+  const closedParams = Array.from(PORTFOLIO_OPEN_TICKET_STATUSES);
+  const openTicketsRes = await client.query<Json>(
+    `SELECT * FROM public.maintenance_tickets
+     WHERE completed_at IS NULL
+       AND (status IS NULL OR lower(status) NOT IN (${closedListSql}))
+     ORDER BY is_emergency DESC NULLS LAST, priority DESC NULLS LAST, created_at DESC
+     LIMIT $${closedParams.length + 1}`,
+    [...closedParams, PORTFOLIO_OPEN_TICKET_LIMIT]
+  );
+  if (openTicketsRes.rows.length > 0) {
+    const ticketIds = openTicketsRes.rows.map((r) => r.id);
+    const notesRes = await client.query<Json>(
+      `SELECT * FROM public.maintenance_notes
+       WHERE ticket_id = ANY($1::uuid[])
+       ORDER BY created_at DESC`,
+      [ticketIds]
+    );
+    const notesByTicket = new Map<string, Json[]>();
+    for (const n of notesRes.rows) {
+      const id = String(n.ticket_id);
+      const arr = notesByTicket.get(id) ?? [];
+      if (arr.length < MAX_NOTES_PER_TICKET) {
+        arr.push(n);
+      }
+      notesByTicket.set(id, arr);
+    }
+    for (const t of openTicketsRes.rows) {
+      out.push(buildGlobalTicketItem(t, notesByTicket.get(String(t.id)) ?? []));
+    }
+  }
+
+  // 6. Active termination notices
+  const termRes = await client.query<Json>(
+    `SELECT * FROM public.termination_notices
+     WHERE actual_move_out_date IS NULL
+     ORDER BY notice_date DESC NULLS LAST
+     LIMIT 20`
+  );
+  for (const n of termRes.rows) {
+    out.push(buildGlobalTerminationItem(n));
+  }
+
+  // 7. Active parking requests
+  const parkRes = await client.query<Json>(
+    `SELECT * FROM public.parking_requests
+     WHERE status IS NULL OR lower(status) NOT IN ('expired', 'denied', 'cancelled')
+     ORDER BY created_at DESC
+     LIMIT 20`
+  );
+  for (const p of parkRes.rows) {
+    out.push(buildGlobalParkingItem(p));
+  }
+
+  // 8. Open prospects (haven't been merged or converted)
+  const prosRes = await client.query<Json>(
+    `SELECT * FROM public.prospects
+     WHERE is_merged IS NOT TRUE
+       AND (state IS NULL OR lower(state) NOT IN ('rejected', 'converted', 'declined', 'closed'))
+     ORDER BY submitted_at DESC NULLS LAST, created_at DESC
+     LIMIT 15`
+  );
+  for (const p of prosRes.rows) {
+    out.push(buildGlobalProspectItem(p));
+  }
+}
+
 const HEALTHCHECK_TABLES = [
   "contacts",
   "tenants",

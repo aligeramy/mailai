@@ -22,6 +22,14 @@ const USER_OVERRIDE_VALIDATOR = v.union(
 
 const MAX_ITEMS_PER_CORRESPONDENT = 1000;
 
+/**
+ * Sentinel correspondent for operator-level / portfolio context that applies
+ * to every reply regardless of who's being emailed. The TSP-RR portfolio
+ * sync writes here; the composer always pulls these in alongside the
+ * per-correspondent items.
+ */
+export const GLOBAL_PORTFOLIO_EMAIL = "__global__";
+
 function normalizeEmail(email: string): string {
   return email.trim().toLowerCase();
 }
@@ -47,6 +55,8 @@ export const listByCorrespondent = query({
   args: {
     email: v.string(),
     source: v.optional(SOURCE_VALIDATOR),
+    /** Set false to skip the always-on global portfolio items. */
+    includeGlobal: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     const email = normalizeEmail(args.email);
@@ -55,20 +65,39 @@ export const listByCorrespondent = query({
     }
 
     const sourceFilter = args.source;
-    if (sourceFilter) {
+    const fetchFor = async (key: string): Promise<Doc<"contextItems">[]> => {
+      if (sourceFilter) {
+        return await ctx.db
+          .query("contextItems")
+          .withIndex("by_correspondent_source", (q) =>
+            q.eq("correspondentEmail", key).eq("source", sourceFilter)
+          )
+          .order("desc")
+          .take(MAX_ITEMS_PER_CORRESPONDENT);
+      }
       return await ctx.db
         .query("contextItems")
-        .withIndex("by_correspondent_source", (q) =>
-          q.eq("correspondentEmail", email).eq("source", sourceFilter)
-        )
+        .withIndex("by_correspondent", (q) => q.eq("correspondentEmail", key))
         .order("desc")
         .take(MAX_ITEMS_PER_CORRESPONDENT);
-    }
-    return await ctx.db
-      .query("contextItems")
-      .withIndex("by_correspondent", (q) => q.eq("correspondentEmail", email))
-      .order("desc")
-      .take(MAX_ITEMS_PER_CORRESPONDENT);
+    };
+
+    const ownItems = await fetchFor(email);
+    const wantGlobal =
+      args.includeGlobal !== false && email !== GLOBAL_PORTFOLIO_EMAIL;
+    const globalItems = wantGlobal
+      ? await fetchFor(GLOBAL_PORTFOLIO_EMAIL)
+      : [];
+
+    // Global items first when they're the bulk of the operator's data;
+    // otherwise newest-first across the merged list.
+    const merged = [...ownItems, ...globalItems];
+    merged.sort((a, b) => {
+      const ta = a.occurredAt ?? a.fetchedAt;
+      const tb = b.occurredAt ?? b.fetchedAt;
+      return tb - ta;
+    });
+    return merged;
   },
 });
 
@@ -594,17 +623,23 @@ export const getLastSyncBySource = internalQuery({
 // briefing, action items next, history last. Anything not listed gets a high
 // (worst) sort key so it falls to the bottom.
 const KIND_PRIORITY: Record<string, number> = {
+  portfolio_summary: -1,
   contact: 0,
   tenant: 1,
   account: 2,
   termination_notice: 3,
+  active_termination_notice: 3,
   parking_request: 4,
+  active_parking: 4,
   prospect: 5,
+  open_prospect: 5,
   ticket: 6,
+  open_ticket: 6,
   payment: 7,
   ledger: 8,
   history_digest: 9,
   note: 10,
+  markdown: 11,
 };
 const DEFAULT_MAX_CHARS = 24_000; // ~6000 tokens at 4 chars/token
 
@@ -630,10 +665,20 @@ export const composeBriefingForCorrespondent = query({
     const maxChars =
       settings?.maxTokens != null ? settings.maxTokens * 4 : DEFAULT_MAX_CHARS;
 
-    const items = await ctx.db
+    const ownItems = await ctx.db
       .query("contextItems")
       .withIndex("by_correspondent", (q) => q.eq("correspondentEmail", email))
       .take(MAX_ITEMS_PER_CORRESPONDENT);
+    const globalItems =
+      email === GLOBAL_PORTFOLIO_EMAIL
+        ? []
+        : await ctx.db
+            .query("contextItems")
+            .withIndex("by_correspondent", (q) =>
+              q.eq("correspondentEmail", GLOBAL_PORTFOLIO_EMAIL)
+            )
+            .take(MAX_ITEMS_PER_CORRESPONDENT);
+    const items = [...globalItems, ...ownItems];
 
     const sourceEnabled = (src: string) =>
       enabledSources.length === 0 || enabledSources.includes(src as never);

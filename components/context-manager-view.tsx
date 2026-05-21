@@ -129,6 +129,7 @@ export function ContextManagerView({
   const addManual = useMutation(api.context.addManualContext);
   const addFile = useMutation(api.context.addContextFile);
   const syncTsprr = useAction(api.tsprrSync.syncTsprrForCorrespondent);
+  const syncPortfolio = useAction(api.tsprrSync.syncTsprrPortfolio);
 
   const filteredItems = useMemo(() => {
     if (!items) {
@@ -179,23 +180,27 @@ export function ContextManagerView({
       return;
     }
     setSyncing(true);
-    setSyncMessage(
-      silent ? `Looking up ${normalizedEmail} in TSP-RR…` : "Syncing TSP-RR…"
-    );
+    setSyncMessage(silent ? "Refreshing TSP-RR…" : "Syncing TSP-RR…");
     try {
-      const result = await syncTsprr({
+      // Always refresh the global portfolio (operator-level data).
+      const portfolio = await syncPortfolio({ force: !silent });
+      // Additionally try to find a per-sender record (no-op for non-tenants).
+      const perSender = await syncTsprr({
         email: normalizedEmail,
         force: !silent,
       });
-      if (result.cached) {
-        setSyncMessage("TSP-RR already fresh (cached < 5 min).");
-      } else if (result.itemsWritten === 0) {
-        setSyncMessage(
-          `No TSP-RR record for ${normalizedEmail} — add a note or upload files below.`
-        );
-      } else {
-        setSyncMessage(`Synced ${result.itemsWritten} item(s) from TSP-RR.`);
+      const bits: string[] = [];
+      bits.push(
+        portfolio.cached
+          ? "Portfolio cached"
+          : `Portfolio: ${portfolio.itemsWritten} item(s)`
+      );
+      if (perSender.itemsWritten > 0) {
+        bits.push(`Sender match: ${perSender.itemsWritten} item(s)`);
+      } else if (!perSender.cached) {
+        bits.push("Sender match: none");
       }
+      setSyncMessage(bits.join(" · "));
     } catch (err) {
       const msg = err instanceof Error ? err.message : "TSP-RR sync failed.";
       setSyncMessage(msg);
@@ -643,13 +648,11 @@ export function ContextManagerView({
             <p className="max-w-md text-muted-foreground text-xs leading-relaxed">
               {items.length === 0 ? (
                 <>
-                  We auto-check TSP-RR for{" "}
-                  <span className="font-medium text-foreground">
-                    {normalizedEmail}
-                  </span>{" "}
-                  the first time you land here. If they're not in the database,
-                  use <span className="font-medium text-foreground">Add</span>{" "}
-                  above to attach a note or upload files (.pdf, .docx, .md,
+                  We auto-sync your TSP-RR portfolio (buildings, open tickets,
+                  prospects, payments) so it's available for every reply. If
+                  sync hasn't run yet, click below — or use{" "}
+                  <span className="font-medium text-foreground">Add</span> above
+                  to attach a note or upload files (.pdf, .docx, .doc, .md,
                   .txt, .json).
                 </>
               ) : (
@@ -672,7 +675,7 @@ export function ContextManagerView({
                 ) : (
                   <RefreshCw className="mr-1 size-3.5" />
                 )}
-                Try TSP-RR again
+                Sync TSP-RR now
               </Button>
             )}
           </CardContent>
