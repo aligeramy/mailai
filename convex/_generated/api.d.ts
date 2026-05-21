@@ -8,6 +8,8 @@
  * @module
  */
 
+import type * as context from "../context.js";
+import type * as tsprrSync from "../tsprrSync.js";
 import type * as users from "../users.js";
 
 import type {
@@ -17,6 +19,8 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  context: typeof context;
+  tsprrSync: typeof tsprrSync;
   users: typeof users;
 }>;
 

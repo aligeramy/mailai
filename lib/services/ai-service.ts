@@ -114,6 +114,22 @@ export function appendCorrespondentHistoryToPrompt(
   return `${basePrompt}\n\n## Broader correspondence with this contact (from your mailbox; use for continuity and facts only)\n${trimmed}\n\nAnchor the reply to the latest thread above; treat this section as background, not as the message to answer directly.`;
 }
 
+/**
+ * Append the context manager's composed briefing (Outlook + TSP-RR + Graph
+ * items the user has marked relevant). Inserted verbatim — already trimmed
+ * and prioritized at compose time.
+ */
+export function appendContextBlockToPrompt(
+  basePrompt: string,
+  contextBlock: string
+): string {
+  const trimmed = contextBlock.trim();
+  if (!trimmed) {
+    return basePrompt;
+  }
+  return `${basePrompt}\n\n${trimmed}\n\nUse the context above to ground facts (names, units, balances, ticket numbers, dates). Do not invent details that aren't supported by it or the thread.`;
+}
+
 export async function compressCorrespondentHistoryForReply(
   client: OpenAI,
   model: string,
@@ -292,6 +308,11 @@ export class OpenAIService implements AIService {
             )
           : rawHistory;
       userPrompt = appendCorrespondentHistoryToPrompt(userPrompt, brief);
+    }
+
+    const contextBlock = options.contextBlock?.trim() ?? "";
+    if (contextBlock.length > 0) {
+      userPrompt = appendContextBlockToPrompt(userPrompt, contextBlock);
     }
 
     const maxOut =

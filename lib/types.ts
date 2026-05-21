@@ -41,6 +41,12 @@ export type CorrespondentContextWindow = "off" | "30" | "60" | "90" | "all";
 /** Options for generating a reply */
 export interface GenerateReplyOptions {
   additionalContext?: string;
+  /**
+   * Pre-composed context block built by the Convex context manager from
+   * included contextItems (Outlook, TSP-RR, Graph, manual). Appended to the
+   * prompt verbatim — facts must already be filtered/trimmed at compose time.
+   */
+  contextBlock?: string;
   /** Past messages with the contact (from client); compressed in the API when large */
   correspondentHistoryRaw?: string;
   emailChain: EmailChain;
@@ -73,6 +79,15 @@ export interface CorrespondentHistoryProgress {
   totalPhases: number;
 }
 
+/** Structured per-message form for context-manager persistence. */
+export interface CorrespondentMessage {
+  from: string;
+  id: string | null;
+  preview: string;
+  subject: string;
+  when: string;
+}
+
 /** Abstracted email provider interface - enables Gmail, Outlook, etc. */
 export interface EmailProvider {
   /**
@@ -83,6 +98,14 @@ export interface EmailProvider {
     window: CorrespondentContextWindow,
     onProgress?: (progress: CorrespondentHistoryProgress) => void
   ): Promise<string>;
+  /**
+   * Outlook: structured per-message list with the same correspondent, used by
+   * the context manager to persist each email as its own contextItems row.
+   * Non-Outlook: returns counterparty="" and items=[].
+   */
+  fetchCorrespondentMessages(
+    window: CorrespondentContextWindow
+  ): Promise<{ counterparty: string; items: CorrespondentMessage[] }>;
   /** Get the current user's email address */
   getCurrentUserEmail(): Promise<string>;
   /** Get the current email chain from the email client */

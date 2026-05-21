@@ -22,6 +22,7 @@ function parseReasoningEffort(
   return;
 }
 
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: orchestrates request validation, optional-field resolution, fast-model preference recommendation, and reply generation in one place; splitting hurts traceability.
 async function handleGenerateReplyBody(
   body: Record<string, unknown>
 ): Promise<NextResponse> {
@@ -31,6 +32,7 @@ async function handleGenerateReplyBody(
     length,
     additionalContext,
     correspondentHistoryRaw,
+    contextBlock,
     apiKey,
   } = body;
 
@@ -44,6 +46,9 @@ async function handleGenerateReplyBody(
     hasCorrespondentHistory: Boolean(
       typeof correspondentHistoryRaw === "string" &&
         correspondentHistoryRaw.trim().length > 0
+    ),
+    hasContextBlock: Boolean(
+      typeof contextBlock === "string" && contextBlock.trim().length > 0
     ),
   });
 
@@ -115,6 +120,11 @@ async function handleGenerateReplyBody(
       ? additionalContext.trim()
       : undefined;
 
+  const contextBlockResolved =
+    typeof contextBlock === "string" && contextBlock.trim()
+      ? contextBlock.trim()
+      : undefined;
+
   let resolvedPreferences: GenerateReplyOptions["resolvedPreferences"];
   if (tonePreference === "auto" || lengthPreference === "auto") {
     try {
@@ -140,6 +150,7 @@ async function handleGenerateReplyBody(
     length: lengthPreference,
     additionalContext: additionalContextResolved,
     correspondentHistoryRaw: rawHistory,
+    contextBlock: contextBlockResolved,
     resolvedPreferences,
   };
 

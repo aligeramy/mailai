@@ -1,5 +1,6 @@
 "use client";
 
+import { ConvexHttpClient } from "convex/browser";
 import {
   Check,
   ChevronDown,
@@ -43,6 +44,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { api } from "@/convex/_generated/api";
 import { useReplyPreferences } from "@/hooks/use-reply-preferences";
 import { stripHtml } from "@/lib/email/html";
 import {
@@ -88,6 +90,106 @@ const CORRESPONDENT_CONTEXT_OPTIONS: {
   { value: "90", label: "90d" },
   { value: "all", label: "All" },
 ];
+
+/** Most recent message from someone other than us — the person we're replying to. */
+function resolveCounterpartyFromChain(chain: EmailChain): string {
+  const me = (chain.currentUserEmail ?? "").trim().toLowerCase();
+  const messages = chain.messages ?? [];
+  for (let i = messages.length - 1; i >= 0; i -= 1) {
+    const from = messages[i]?.from?.trim().toLowerCase() ?? "";
+    if (from && from !== me) {
+      return from;
+    }
+  }
+  return messages[0]?.from?.trim().toLowerCase() ?? "";
+}
+
+/**
+ * Pull CRM context from Convex for the counterparty: trigger TSP-RR sync,
+ * persist Outlook messages (per-email when available, falling back to a
+ * bundled digest), then compose the final context block. Best-effort — any
+ * failure returns an empty string so the reply still ships.
+ */
+async function fetchContextBlock(opts: {
+  counterpartyEmail: string;
+  correspondentHistoryRaw?: string;
+  historyWindow?: CorrespondentContextWindow;
+}): Promise<string> {
+  const email = opts.counterpartyEmail.trim().toLowerCase();
+  const convexUrl = process.env.NEXT_PUBLIC_CONVEX_URL;
+  if (!(email && convexUrl)) {
+    return "";
+  }
+  try {
+    const client = new ConvexHttpClient(convexUrl);
+    const tsprrJob = client
+      .action(api.tsprrSync.syncTsprrForCorrespondent, { email })
+      .catch((err: unknown) => {
+        console.warn("[mailai/taskpane] tsprr sync failed", err);
+      });
+    const outlookJob = persistOutlookContextItems({
+      client,
+      email,
+      window: opts.historyWindow,
+      brief: opts.correspondentHistoryRaw,
+    });
+    await Promise.all([tsprrJob, outlookJob]);
+    const composed = await client.query(
+      api.context.composeBriefingForCorrespondent,
+      { email }
+    );
+    return composed.contextBlock ?? "";
+  } catch (err) {
+    console.warn("[mailai/taskpane] context block fetch failed", err);
+    return "";
+  }
+}
+
+/**
+ * Try per-email persistence first (structured fetch from Outlook REST);
+ * if that yields nothing usable, fall back to the bundled digest. The
+ * per-email mutation cleans up the digest automatically so we never have
+ * both coexisting for the same correspondent.
+ */
+async function persistOutlookContextItems(args: {
+  client: ConvexHttpClient;
+  email: string;
+  window?: CorrespondentContextWindow;
+  brief?: string;
+}): Promise<void> {
+  const { client, email, window: historyWindow, brief } = args;
+  if (historyWindow && historyWindow !== "off") {
+    try {
+      const provider = createEmailProvider("outlook");
+      const structured =
+        await provider.fetchCorrespondentMessages(historyWindow);
+      if (structured.items.length > 0) {
+        await client.mutation(api.context.upsertOutlookMessages, {
+          email,
+          items: structured.items,
+        });
+        return;
+      }
+    } catch (err) {
+      console.warn(
+        "[mailai/taskpane] per-email outlook fetch failed; falling back to digest",
+        err
+      );
+    }
+  }
+  if (brief?.trim()) {
+    try {
+      await client.mutation(api.context.recordOutlookHistoryDigest, {
+        email,
+        brief,
+        windowLabel:
+          historyWindow && historyWindow !== "off" ? historyWindow : undefined,
+      });
+    } catch (err) {
+      console.warn("[mailai/taskpane] outlook digest save failed", err);
+    }
+  }
+}
 
 const MAILAI_SESSION_HISTORY_UNSUPPORTED = "mailai_history_rest_unsupported";
 const MAILAI_SESSION_HISTORY_UNSUPPORTED_DISMISSED =
@@ -578,6 +680,15 @@ export default function TaskpanePage() {
       const historySideNote = historyBundle.note;
       const resolvedPreferences = await ensureResolvedPreferences();
 
+      // Context manager: sync TSP-RR + persist Outlook history + compose
+      // briefing. Best-effort — Convex outages must not break reply generation.
+      const counterpartyEmail = resolveCounterpartyFromChain(chainToUse);
+      const contextBlock = await fetchContextBlock({
+        counterpartyEmail,
+        correspondentHistoryRaw,
+        historyWindow: correspondentContext,
+      });
+
       const response = await fetch("/api/generate-reply", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -588,6 +699,7 @@ export default function TaskpanePage() {
           resolvedPreferences,
           additionalContext: additionalContext || undefined,
           ...(correspondentHistoryRaw ? { correspondentHistoryRaw } : {}),
+          ...(contextBlock ? { contextBlock } : {}),
           ...(apiKey.trim() ? { apiKey: apiKey.trim() } : {}),
         }),
       });

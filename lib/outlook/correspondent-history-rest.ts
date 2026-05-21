@@ -119,6 +119,16 @@ interface RestListResponse {
 
 interface HistorySnippet {
   from: string;
+  id: string | null;
+  preview: string;
+  subject: string;
+  when: string;
+}
+
+/** Structured per-message form exposed for per-email context persistence. */
+export interface OutlookHistoryItem {
+  from: string;
+  id: string | null;
   preview: string;
   subject: string;
   when: string;
@@ -329,6 +339,7 @@ function pushMatchingSnippetsFromBatch(
       seenIds.add(mid);
     }
     collected.push({
+      id: mid ?? null,
       subject,
       when,
       from: fromAddr,
@@ -508,4 +519,72 @@ export async function fetchCorrespondentHistoryFromRest(params: {
   }
 
   return buildHistoryPromptBody(counterparty, params.window, collected);
+}
+
+/**
+ * Same REST fetch as fetchCorrespondentHistoryFromRest, but returns the
+ * structured per-message list instead of a joined brief. Used by the context
+ * manager to persist each message as its own row, so the user can toggle
+ * individual emails in or out of the AI prompt.
+ */
+export async function fetchCorrespondentMessagesFromRest(params: {
+  currentUserEmail: string;
+  isComposeMode: boolean;
+  item: Office.MessageRead | Office.MessageCompose;
+  mailbox: Office.Mailbox;
+  window: Exclude<CorrespondentContextWindow, "off">;
+}): Promise<{ counterparty: string; items: OutlookHistoryItem[] }> {
+  const counterparty = await resolveCounterpartyEmail({
+    item: params.item,
+    isComposeMode: params.isComposeMode,
+    currentUserEmail: params.currentUserEmail,
+  });
+  if (!counterparty) {
+    return { counterparty: "", items: [] };
+  }
+
+  if (params.isComposeMode) {
+    try {
+      await saveComposeItemAsync(params.item as Office.MessageCompose);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      throw new Error(
+        attachMailboxSearchHint(`Save draft (needed for REST): ${msg}`)
+      );
+    }
+  }
+
+  let token: string;
+  try {
+    token = await callbackTokenAsync(params.mailbox);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    throw new Error(attachMailboxSearchHint(`REST token: ${msg}`));
+  }
+
+  const base = (params.mailbox.restUrl ?? "").replace(TRAILING_SLASH_RE, "");
+  if (!base) {
+    throw new Error(
+      "Outlook restUrl is empty in this host (mailbox search unavailable here)."
+    );
+  }
+
+  const segments = historyTimeSegments(params.window);
+  const collected: HistorySnippet[] = [];
+  const seenIds = new Set<string>();
+  const pageBudget = { used: 0 };
+
+  for (const segment of segments) {
+    await collectFromSegment(
+      base,
+      token,
+      segment,
+      counterparty,
+      collected,
+      seenIds,
+      pageBudget
+    );
+  }
+
+  return { counterparty, items: collected };
 }
