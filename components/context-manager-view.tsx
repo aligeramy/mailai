@@ -17,6 +17,7 @@ import {
   X,
 } from "lucide-react";
 import { type ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
+import { Badge, type BadgeTone } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -59,6 +60,214 @@ async function extractFileContent(file: File): Promise<string> {
     throw new Error(data.error ?? `Could not parse ${file.name}.`);
   }
   return data.content;
+}
+
+const SOURCE_TONES: Record<string, BadgeTone> = {
+  outlook: "info",
+  graph: "sky",
+  tsprr: "violet",
+  files: "success",
+  manual: "neutral",
+};
+
+const KIND_LABELS: Record<string, string> = {
+  contact: "contact",
+  tenant: "tenant",
+  account: "account",
+  payment: "payment",
+  ledger: "ledger",
+  ticket: "ticket",
+  open_ticket: "ticket",
+  prospect: "prospect",
+  open_prospect: "prospect",
+  termination_notice: "termination",
+  active_termination_notice: "termination",
+  parking_request: "parking",
+  active_parking: "parking",
+  portfolio_summary: "portfolio",
+  history_digest: "mail digest",
+  email: "email",
+  note: "note",
+  markdown: "file",
+};
+
+const STATUS_TONES: Record<string, BadgeTone> = {
+  completed: "success",
+  done: "success",
+  active: "success",
+  approved: "success",
+  in_progress: "info",
+  pending: "warning",
+  open: "warning",
+  on_hold: "warning",
+  submitted: "info",
+  deferred: "muted",
+  cancelled: "muted",
+  closed: "muted",
+  merged: "muted",
+  rejected: "danger",
+  denied: "danger",
+  expired: "muted",
+};
+
+const PRIORITY_TONES: Record<string, BadgeTone> = {
+  emergency: "danger",
+  critical: "danger",
+  urgent: "danger",
+  high: "danger",
+  medium: "warning",
+  normal: "info",
+  low: "muted",
+};
+
+interface BadgeSpec {
+  label: string;
+  title?: string;
+  tone: BadgeTone;
+}
+
+function toneForStatus(status: string | undefined | null): BadgeTone {
+  const key = (status ?? "").toLowerCase().replace(/\s+/g, "_");
+  return STATUS_TONES[key] ?? "muted";
+}
+
+function toneForPriority(priority: string | undefined | null): BadgeTone {
+  const key = (priority ?? "").toLowerCase();
+  return PRIORITY_TONES[key] ?? "neutral";
+}
+
+/**
+ * Extract small, badge-worthy metadata from an item's structured `raw` blob.
+ * Each kind contributes the fields that are most useful at a glance — e.g.
+ * tickets surface priority + status + emergency flag; payments surface
+ * status; tenants surface their status; accounts surface their balance state.
+ */
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: dispatch table on kind; each case is independent and self-contained.
+function extractMetaBadges(item: Doc<"contextItems">): BadgeSpec[] {
+  const raw = item.raw as Record<string, unknown> | undefined;
+  if (!raw) {
+    return [];
+  }
+  const badges: BadgeSpec[] = [];
+
+  const ticketRaw =
+    item.kind === "open_ticket" || item.kind === "ticket"
+      ? ((raw.ticket ?? raw) as Record<string, unknown>)
+      : null;
+  if (ticketRaw) {
+    if (ticketRaw.is_emergency) {
+      badges.push({ label: "EMERGENCY", tone: "danger" });
+    }
+    if (typeof ticketRaw.priority === "string") {
+      badges.push({
+        label: ticketRaw.priority,
+        tone: toneForPriority(ticketRaw.priority),
+      });
+    }
+    if (typeof ticketRaw.status === "string") {
+      badges.push({
+        label: ticketRaw.status.replace(/_/g, " "),
+        tone: toneForStatus(ticketRaw.status),
+      });
+    }
+    if (typeof ticketRaw.category === "string") {
+      badges.push({
+        label: ticketRaw.category.replace(/_/g, " "),
+        tone: "muted",
+      });
+    }
+    return badges;
+  }
+
+  if (item.kind === "tenant") {
+    const tenant = (raw.tenant ?? raw) as Record<string, unknown>;
+    if (typeof tenant.status === "string") {
+      badges.push({
+        label: tenant.status,
+        tone: toneForStatus(tenant.status),
+      });
+    }
+    return badges;
+  }
+
+  if (item.kind === "account") {
+    const account = (raw.account ?? raw) as Record<string, unknown>;
+    if (typeof account.status === "string") {
+      badges.push({
+        label: account.status,
+        tone: toneForStatus(account.status),
+      });
+    }
+    const balance = typeof raw.balance === "number" ? raw.balance : null;
+    if (balance !== null && balance > 0) {
+      badges.push({ label: "owes balance", tone: "warning" });
+    } else if (balance !== null && balance < 0) {
+      badges.push({ label: "credit", tone: "info" });
+    }
+    return badges;
+  }
+
+  if (item.kind === "payment") {
+    if (typeof raw.status === "string") {
+      badges.push({ label: raw.status, tone: toneForStatus(raw.status) });
+    }
+    if (typeof raw.payment_method === "string") {
+      badges.push({ label: raw.payment_method, tone: "muted" });
+    }
+    return badges;
+  }
+
+  if (
+    item.kind === "active_termination_notice" ||
+    item.kind === "termination_notice"
+  ) {
+    if (typeof raw.status === "string") {
+      badges.push({ label: raw.status, tone: toneForStatus(raw.status) });
+    }
+    if (typeof raw.notice_type === "string") {
+      badges.push({ label: raw.notice_type, tone: "muted" });
+    }
+    return badges;
+  }
+
+  if (item.kind === "active_parking" || item.kind === "parking_request") {
+    if (typeof raw.status === "string") {
+      badges.push({ label: raw.status, tone: toneForStatus(raw.status) });
+    }
+    return badges;
+  }
+
+  if (item.kind === "open_prospect" || item.kind === "prospect") {
+    const prospect = (raw.prospect ?? raw) as Record<string, unknown>;
+    if (typeof prospect.state === "string") {
+      badges.push({
+        label: prospect.state,
+        tone: toneForStatus(prospect.state),
+      });
+    }
+    if (typeof prospect.rating === "number") {
+      badges.push({
+        label: `★ ${prospect.rating}/5`,
+        tone: prospect.rating >= 4 ? "success" : "muted",
+      });
+    }
+    return badges;
+  }
+
+  if (item.kind === "contact") {
+    const contactType =
+      typeof raw.contact_type === "string" ? raw.contact_type : null;
+    if (contactType) {
+      badges.push({ label: contactType.replace(/_/g, " "), tone: "muted" });
+    }
+    return badges;
+  }
+
+  return badges;
+}
+
+function isGlobalItem(item: Doc<"contextItems">): boolean {
+  return item.correspondentEmail === "__global__";
 }
 
 function effectiveIncluded(item: Doc<"contextItems">): boolean {
@@ -684,21 +893,16 @@ export function ContextManagerView({
       {items !== undefined && filteredItems.length > 0 && (
         <div className="overflow-hidden rounded-lg border border-border/60 bg-background shadow-sm">
           <table className="w-full text-sm">
-            <thead className="border-border/60 border-b bg-muted/40 text-[11px] uppercase tracking-wide">
+            <thead className="border-border/60 border-b bg-muted/40 text-[10px] uppercase tracking-wider">
               <tr className="text-left text-muted-foreground">
                 <th className="w-8 px-2 py-2" />
-                <th className="px-2 py-2 font-medium">Item</th>
+                <th className="px-2 py-2 font-medium">Context item</th>
                 {!compact && (
-                  <th className="hidden px-3 py-2 font-medium md:table-cell">
-                    Source
-                  </th>
-                )}
-                {!compact && (
-                  <th className="hidden px-3 py-2 font-medium md:table-cell">
+                  <th className="hidden w-32 px-3 py-2 font-medium md:table-cell">
                     When
                   </th>
                 )}
-                <th className="px-2 py-2 font-medium">Status</th>
+                <th className="px-2 py-2 text-right font-medium">State</th>
               </tr>
             </thead>
             <tbody>
@@ -815,12 +1019,18 @@ function ContextRow(props: {
 }) {
   const { item, included, expanded, compact, onDelete } = props;
   const ts = item.occurredAt ?? item.fetchedAt;
+  const sourceLabel = SOURCE_LABELS[item.source] ?? item.source;
+  const sourceTone: BadgeTone = SOURCE_TONES[item.source] ?? "neutral";
+  const kindLabel = KIND_LABELS[item.kind] ?? item.kind.replace(/_/g, " ");
+  const metaBadges = extractMetaBadges(item);
+  const isGlobal = isGlobalItem(item);
+
   return (
     <>
       <tr
         className={`border-border/40 border-t transition-colors ${expanded ? "bg-muted/30" : "hover:bg-muted/20"}`}
       >
-        <td className="px-2 py-2 align-top">
+        <td className="w-8 px-2 py-2.5 align-top">
           <input
             aria-label={`Include ${item.title}`}
             checked={included}
@@ -829,53 +1039,57 @@ function ContextRow(props: {
             type="checkbox"
           />
         </td>
-        <td className="px-2 py-2 align-top">
+        <td className="px-2 py-2.5 align-top">
           <button
-            className="text-left font-medium hover:underline"
+            className="block text-left font-medium text-foreground/95 leading-snug hover:underline"
             onClick={props.onToggleExpand}
             type="button"
           >
             {item.title}
           </button>
-          <div className="text-muted-foreground text-xs">{item.snippet}</div>
-          {compact && (
+          <div className="mt-1 flex flex-wrap items-center gap-1">
+            <Badge tone={sourceTone}>{sourceLabel}</Badge>
+            <Badge tone="muted">{kindLabel}</Badge>
+            {isGlobal && <Badge tone="violet">portfolio</Badge>}
+            {metaBadges.map((b) => (
+              <Badge key={`${b.label}-${b.tone}`} tone={b.tone}>
+                {b.label}
+              </Badge>
+            ))}
+          </div>
+          {item.snippet && (
+            <div className="mt-1 line-clamp-2 text-[11px] text-muted-foreground leading-snug">
+              {item.snippet}
+            </div>
+          )}
+          {compact && ts && (
             <div className="mt-0.5 text-[10px] text-muted-foreground">
-              {SOURCE_LABELS[item.source] ?? item.source} · {item.kind} ·{" "}
               {formatTimestamp(ts)}
             </div>
           )}
         </td>
         {!compact && (
-          <td className="hidden whitespace-nowrap px-3 py-2 align-top text-muted-foreground text-xs md:table-cell">
-            {SOURCE_LABELS[item.source] ?? item.source} · {item.kind}
-          </td>
-        )}
-        {!compact && (
-          <td className="hidden whitespace-nowrap px-3 py-2 align-top text-muted-foreground text-xs md:table-cell">
+          <td className="hidden w-32 whitespace-nowrap px-3 py-2.5 align-top text-[11px] text-muted-foreground md:table-cell">
             {formatTimestamp(ts)}
           </td>
         )}
-        <td className="px-2 py-2 align-top text-xs">
-          <div className="flex items-center gap-1.5">
+        <td className="px-2 py-2.5 align-top">
+          <div className="flex items-center justify-end gap-1.5">
             {item.userOverride === "include" && (
-              <span className="rounded bg-emerald-500/15 px-1.5 py-0.5 font-medium text-emerald-700 dark:text-emerald-300">
-                In
-              </span>
+              <Badge tone="success">pinned in</Badge>
             )}
             {item.userOverride === "exclude" && (
-              <span className="rounded bg-rose-500/15 px-1.5 py-0.5 font-medium text-rose-700 dark:text-rose-300">
-                Out
-              </span>
+              <Badge tone="danger">pinned out</Badge>
             )}
             {item.userOverride === undefined && (
-              <span className="text-muted-foreground">
+              <Badge tone={item.defaultRelevant ? "neutral" : "muted"}>
                 {item.defaultRelevant ? "auto-in" : "auto-out"}
-              </span>
+              </Badge>
             )}
             {onDelete && (
               <button
                 aria-label={`Delete ${item.title}`}
-                className="text-muted-foreground hover:text-rose-600"
+                className="rounded p-1 text-muted-foreground transition-colors hover:bg-rose-500/10 hover:text-rose-600 dark:hover:text-rose-300"
                 onClick={onDelete}
                 type="button"
               >
@@ -886,9 +1100,9 @@ function ContextRow(props: {
         </td>
       </tr>
       {expanded && (
-        <tr className="border-t bg-muted/30">
-          <td className="px-2 py-3" colSpan={compact ? 3 : 5}>
-            <pre className="max-h-96 overflow-auto whitespace-pre-wrap text-xs">
+        <tr className="border-border/40 border-t bg-muted/20">
+          <td className="px-2 py-3" colSpan={compact ? 3 : 4}>
+            <pre className="max-h-96 overflow-auto whitespace-pre-wrap rounded-md border border-border/40 bg-background p-2 text-[11px] leading-snug">
               {item.bodyForPrompt}
             </pre>
           </td>
