@@ -47,7 +47,8 @@
     </Form>
   </FormSettings>
 
-  <!-- ReadWriteMailbox: required to read past messages with the contact via Outlook REST -->
+  <!-- ReadWriteMailbox: required for compose-mode Office.js APIs. Mailbox history search
+       now goes through Microsoft Graph (Mail.Read), not the legacy Outlook REST endpoint. -->
   <Permissions>ReadWriteMailbox</Permissions>
 
   <Rule xsi:type="RuleCollection" Mode="Or">

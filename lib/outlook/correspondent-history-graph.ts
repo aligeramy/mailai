@@ -1,3 +1,9 @@
+import {
+  type AccountInfo,
+  createNestablePublicClientApplication,
+  InteractionRequiredAuthError,
+  type IPublicClientApplication,
+} from "@azure/msal-browser";
 import type {
   CorrespondentContextWindow,
   CorrespondentHistoryProgress,
@@ -8,113 +14,124 @@ const MAX_PAGES = 28;
 const MAX_MATCHES = 85;
 const MAX_PREVIEW_CHARS = 480;
 const MAX_PROMPT_CHARS = 78_000;
-const TRAILING_SLASH_RE = /\/$/;
+const GRAPH_BASE = "https://graph.microsoft.com/v1.0";
+const GRAPH_SCOPES = ["Mail.Read"];
 const WHITESPACE_COLLAPSE_RE = /\s+/g;
 
 function normalizeEmail(addr: string | undefined): string {
   return (addr ?? "").trim().toLowerCase();
 }
 
-function callbackTokenAsync(mailbox: Office.Mailbox): Promise<string> {
-  return new Promise((resolve, reject) => {
-    mailbox.getCallbackTokenAsync({ isRest: true }, (result) => {
-      if (
-        result.status === Office.AsyncResultStatus.Succeeded &&
-        result.value
-      ) {
-        resolve(result.value);
-      } else {
-        const code = result.error?.code;
-        const diag = code != null ? ` (code ${code})` : "";
-        reject(
-          new Error(
-            (result.error?.message ?? "Could not get Outlook REST token.") +
-              diag
-          )
-        );
-      }
-    });
-  });
+let pcaPromise: Promise<IPublicClientApplication> | null = null;
+
+function getEntraClientId(): string {
+  const id = process.env.NEXT_PUBLIC_AZURE_CLIENT_ID;
+  if (!id) {
+    throw new Error(
+      "NEXT_PUBLIC_AZURE_CLIENT_ID is not set. Register an Entra app and set it before enabling mailbox history."
+    );
+  }
+  return id;
 }
 
-/** Plain-English hint for generic host failures when getting REST access. */
-function attachMailboxSearchHint(message: string): string {
-  if (
-    message.includes("-2147467259") ||
-    message.includes("Internal protocol") ||
-    message.includes("9017") ||
-    message.includes("9018") ||
-    message.includes("9042")
-  ) {
-    return `${message}\n\nMailbox history needs Exchange / Microsoft 365 with ReadWriteMailbox in the manifest. Error 9017 and similar codes often appear for Gmail or other IMAP accounts in Outlook for Mac — Outlook on the web or Windows usually works. Choose History: Off to skip mailbox search.`;
+function getEntraAuthority(): string {
+  // Single-tenant apps (the default for new-auth-style registrations) reject /common.
+  // Honor NEXT_PUBLIC_AZURE_TENANT_ID when set; fall back to /common for multi-tenant apps.
+  const tenant = process.env.NEXT_PUBLIC_AZURE_TENANT_ID?.trim();
+  return tenant
+    ? `https://login.microsoftonline.com/${tenant}`
+    : "https://login.microsoftonline.com/common";
+}
+
+function getMsalClient(): Promise<IPublicClientApplication> {
+  if (!pcaPromise) {
+    pcaPromise = createNestablePublicClientApplication({
+      auth: {
+        clientId: getEntraClientId(),
+        authority: getEntraAuthority(),
+      },
+    });
   }
-  return message;
+  return pcaPromise;
+}
+
+function pickAccount(pca: IPublicClientApplication): AccountInfo | undefined {
+  const accounts = pca.getAllAccounts();
+  if (accounts.length === 0) {
+    return;
+  }
+  const active = pca.getActiveAccount();
+  if (active) {
+    return active;
+  }
+  pca.setActiveAccount(accounts[0]);
+  return accounts[0];
+}
+
+async function acquireGraphToken(): Promise<string> {
+  const pca = await getMsalClient();
+  const account = pickAccount(pca);
+  try {
+    const result = await pca.acquireTokenSilent({
+      scopes: GRAPH_SCOPES,
+      account,
+    });
+    return result.accessToken;
+  } catch (err) {
+    if (err instanceof InteractionRequiredAuthError) {
+      const result = await pca.acquireTokenPopup({ scopes: GRAPH_SCOPES });
+      if (result.account) {
+        pca.setActiveAccount(result.account);
+      }
+      return result.accessToken;
+    }
+    throw err;
+  }
+}
+
+/** Plain-English hint for Graph auth/host failures. */
+function attachMailboxSearchHint(message: string): string {
+  return `${message}\n\nMailbox history needs a Microsoft 365 / Exchange Online account with Mail.Read consented. Gmail or IMAP mailboxes attached to Outlook can't be searched through Microsoft Graph — set History to Off in that case.`;
 }
 
 /** True when the message is likely a host/account limitation, not a bug. */
-export function isRestMailboxHistoryUnsupportedMessage(
+export function isGraphMailboxHistoryUnsupportedMessage(
   message: string
 ): boolean {
   return (
-    message.includes("9017") ||
-    message.includes("9018") ||
-    message.includes("9042") ||
-    message.includes("-2147467259") ||
-    message.includes("Internal protocol") ||
-    message.includes("Exchange / Microsoft 365")
+    message.includes("NEXT_PUBLIC_AZURE_CLIENT_ID") ||
+    message.includes("Microsoft 365 / Exchange Online") ||
+    message.includes("Mail.Read") ||
+    message.includes("consent_required") ||
+    message.includes("interaction_required") ||
+    message.includes("invalid_grant") ||
+    message.includes("AADSTS") ||
+    message.includes("nested_app_auth_not_supported") ||
+    message.includes("MailboxNotEnabledForRESTAPI")
   );
 }
 
-export function restMailboxHistoryUserShortHint(): string {
-  return "Not available for this account in this Outlook client (common with Gmail/IMAP on Mac). Set History to Off, or use Outlook on the web / Windows with Microsoft 365.";
+export function graphMailboxHistoryUserShortHint(): string {
+  return "Mailbox search needs a Microsoft 365 account with Mail.Read consent. Not available for Gmail/IMAP mailboxes attached to Outlook — set History to Off.";
 }
 
-function saveComposeItemAsync(item: Office.MessageCompose): Promise<void> {
-  return new Promise((resolve, reject) => {
-    item.saveAsync((result) => {
-      if (result.status === Office.AsyncResultStatus.Succeeded) {
-        resolve();
-      } else {
-        reject(
-          new Error(result.error?.message ?? "Save message failed (compose).")
-        );
-      }
-    });
-  });
+interface GraphEmailAddress {
+  emailAddress?: { address?: string; name?: string };
 }
 
-function getComposeToAddresses(item: Office.MessageCompose): Promise<string[]> {
-  return new Promise((resolve) => {
-    item.to.getAsync((result) => {
-      if (
-        result.status === Office.AsyncResultStatus.Succeeded &&
-        result.value?.length
-      ) {
-        resolve(result.value.map((r) => r.emailAddress));
-      } else {
-        resolve([]);
-      }
-    });
-  });
+interface GraphMessage {
+  bodyPreview?: string;
+  ccRecipients?: GraphEmailAddress[];
+  from?: GraphEmailAddress;
+  id?: string;
+  receivedDateTime?: string;
+  subject?: string;
+  toRecipients?: GraphEmailAddress[];
 }
 
-interface RestEmailAddress {
-  EmailAddress?: { Address?: string; Name?: string };
-}
-
-interface RestMessage {
-  BodyPreview?: string;
-  CcRecipients?: RestEmailAddress[];
-  From?: RestEmailAddress;
-  Id?: string;
-  ReceivedDateTime?: string;
-  Subject?: string;
-  ToRecipients?: RestEmailAddress[];
-}
-
-interface RestListResponse {
+interface GraphListResponse {
   "@odata.nextLink"?: string;
-  value?: RestMessage[];
+  value?: GraphMessage[];
 }
 
 interface HistorySnippet {
@@ -218,27 +235,42 @@ export function correspondentHistoryPhaseLabels(
 }
 
 function messageInvolvesCounterparty(
-  m: RestMessage,
+  m: GraphMessage,
   counterparty: string
 ): boolean {
   const c = normalizeEmail(counterparty);
   if (!c) {
     return false;
   }
-  if (normalizeEmail(m.From?.EmailAddress?.Address) === c) {
+  if (normalizeEmail(m.from?.emailAddress?.address) === c) {
     return true;
   }
-  for (const r of m.ToRecipients ?? []) {
-    if (normalizeEmail(r.EmailAddress?.Address) === c) {
+  for (const r of m.toRecipients ?? []) {
+    if (normalizeEmail(r.emailAddress?.address) === c) {
       return true;
     }
   }
-  for (const r of m.CcRecipients ?? []) {
-    if (normalizeEmail(r.EmailAddress?.Address) === c) {
+  for (const r of m.ccRecipients ?? []) {
+    if (normalizeEmail(r.emailAddress?.address) === c) {
       return true;
     }
   }
   return false;
+}
+
+function getComposeToAddresses(item: Office.MessageCompose): Promise<string[]> {
+  return new Promise((resolve) => {
+    item.to.getAsync((result) => {
+      if (
+        result.status === Office.AsyncResultStatus.Succeeded &&
+        result.value?.length
+      ) {
+        resolve(result.value.map((r) => r.emailAddress));
+      } else {
+        resolve([]);
+      }
+    });
+  });
 }
 
 export async function resolveCounterpartyEmail(params: {
@@ -277,16 +309,16 @@ function buildMessagesQuery(options: {
   const params = new URLSearchParams();
   params.set(
     "$select",
-    "Id,Subject,ReceivedDateTime,From,ToRecipients,CcRecipients,BodyPreview"
+    "id,subject,receivedDateTime,from,toRecipients,ccRecipients,bodyPreview"
   );
-  params.set("$orderby", "ReceivedDateTime desc");
+  params.set("$orderby", "receivedDateTime desc");
   params.set("$top", String(options.pageSize));
   const filters: string[] = [];
   if (options.fromInclusive) {
-    filters.push(`ReceivedDateTime ge ${options.fromInclusive.toISOString()}`);
+    filters.push(`receivedDateTime ge ${options.fromInclusive.toISOString()}`);
   }
   if (options.toExclusive) {
-    filters.push(`ReceivedDateTime lt ${options.toExclusive.toISOString()}`);
+    filters.push(`receivedDateTime lt ${options.toExclusive.toISOString()}`);
   }
   if (filters.length > 0) {
     params.set("$filter", filters.join(" and "));
@@ -294,10 +326,10 @@ function buildMessagesQuery(options: {
   return params.toString();
 }
 
-async function fetchOutlookRestJson(
+async function fetchGraphJson(
   url: string,
   token: string
-): Promise<RestListResponse> {
+): Promise<GraphListResponse> {
   const res = await fetch(url, {
     headers: {
       Authorization: `Bearer ${token}`,
@@ -307,31 +339,31 @@ async function fetchOutlookRestJson(
   if (!res.ok) {
     const text = await res.text();
     throw new Error(
-      `Outlook REST failed (${res.status}): ${text.slice(0, 280)}`
+      `Graph request failed (${res.status}): ${text.slice(0, 280)}`
     );
   }
-  return res.json() as Promise<RestListResponse>;
+  return res.json() as Promise<GraphListResponse>;
 }
 
 function pushMatchingSnippetsFromBatch(
-  batch: RestMessage[],
+  batch: GraphMessage[],
   counterparty: string,
   collected: HistorySnippet[],
   seenIds: Set<string>
 ): void {
   for (const m of batch) {
-    const mid = m.Id?.trim();
+    const mid = m.id?.trim();
     if (mid && seenIds.has(mid)) {
       continue;
     }
     if (!messageInvolvesCounterparty(m, counterparty)) {
       continue;
     }
-    const subject = m.Subject?.trim() || "(No subject)";
+    const subject = m.subject?.trim() || "(No subject)";
     const when =
-      m.ReceivedDateTime?.trim() ?? new Date().toISOString().slice(0, 10);
-    const fromAddr = m.From?.EmailAddress?.Address?.trim() ?? "(unknown)";
-    const preview = (m.BodyPreview ?? "")
+      m.receivedDateTime?.trim() ?? new Date().toISOString().slice(0, 10);
+    const fromAddr = m.from?.emailAddress?.address?.trim() ?? "(unknown)";
+    const preview = (m.bodyPreview ?? "")
       .replace(WHITESPACE_COLLAPSE_RE, " ")
       .trim()
       .slice(0, MAX_PREVIEW_CHARS);
@@ -371,7 +403,6 @@ function buildHistoryPromptBody(
 }
 
 async function collectFromSegment(
-  base: string,
   token: string,
   segment: HistoryTimeSegment,
   counterparty: string,
@@ -384,7 +415,7 @@ async function collectFromSegment(
     toExclusive: segment.toExclusive,
     pageSize: PAGE_SIZE,
   });
-  let nextUrl: string | null = `${base}/Me/Messages?${query}`;
+  let nextUrl: string | null = `${GRAPH_BASE}/me/messages?${query}`;
 
   while (
     nextUrl &&
@@ -392,7 +423,7 @@ async function collectFromSegment(
     pageBudget.used < MAX_PAGES
   ) {
     pageBudget.used += 1;
-    const data = await fetchOutlookRestJson(nextUrl, token);
+    const data = await fetchGraphJson(nextUrl, token);
     const batch = data.value ?? [];
     pushMatchingSnippetsFromBatch(batch, counterparty, collected, seenIds);
     nextUrl = data["@odata.nextLink"] ?? null;
@@ -427,11 +458,10 @@ function emitProgress(
   });
 }
 
-export async function fetchCorrespondentHistoryFromRest(params: {
+export async function fetchCorrespondentHistoryFromGraph(params: {
   currentUserEmail: string;
   isComposeMode: boolean;
   item: Office.MessageRead | Office.MessageCompose;
-  mailbox: Office.Mailbox;
   onProgress?: (progress: CorrespondentHistoryProgress) => void;
   window: Exclude<CorrespondentContextWindow, "off">;
 }): Promise<string> {
@@ -445,30 +475,12 @@ export async function fetchCorrespondentHistoryFromRest(params: {
     return "";
   }
 
-  if (params.isComposeMode) {
-    try {
-      await saveComposeItemAsync(params.item as Office.MessageCompose);
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      throw new Error(
-        attachMailboxSearchHint(`Save draft (needed for REST): ${msg}`)
-      );
-    }
-  }
-
   let token: string;
   try {
-    token = await callbackTokenAsync(params.mailbox);
+    token = await acquireGraphToken();
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    throw new Error(attachMailboxSearchHint(`REST token: ${msg}`));
-  }
-
-  const base = (params.mailbox.restUrl ?? "").replace(TRAILING_SLASH_RE, "");
-  if (!base) {
-    throw new Error(
-      "Outlook restUrl is empty in this host (mailbox search unavailable here)."
-    );
+    throw new Error(attachMailboxSearchHint(`Graph token: ${msg}`));
   }
 
   const segments = historyTimeSegments(params.window);
@@ -490,7 +502,6 @@ export async function fetchCorrespondentHistoryFromRest(params: {
   try {
     for (let i = 0; i < segments.length; i++) {
       await collectFromSegment(
-        base,
         token,
         segments[i],
         counterparty,
@@ -511,7 +522,7 @@ export async function fetchCorrespondentHistoryFromRest(params: {
     }
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    throw new Error(`Mail list request: ${msg}`);
+    throw new Error(attachMailboxSearchHint(`Mail list request: ${msg}`));
   }
 
   if (collected.length === 0) {
@@ -522,16 +533,15 @@ export async function fetchCorrespondentHistoryFromRest(params: {
 }
 
 /**
- * Same REST fetch as fetchCorrespondentHistoryFromRest, but returns the
+ * Same Graph fetch as fetchCorrespondentHistoryFromGraph, but returns the
  * structured per-message list instead of a joined brief. Used by the context
  * manager to persist each message as its own row, so the user can toggle
  * individual emails in or out of the AI prompt.
  */
-export async function fetchCorrespondentMessagesFromRest(params: {
+export async function fetchCorrespondentMessagesFromGraph(params: {
   currentUserEmail: string;
   isComposeMode: boolean;
   item: Office.MessageRead | Office.MessageCompose;
-  mailbox: Office.Mailbox;
   window: Exclude<CorrespondentContextWindow, "off">;
 }): Promise<{ counterparty: string; items: OutlookHistoryItem[] }> {
   const counterparty = await resolveCounterpartyEmail({
@@ -543,30 +553,12 @@ export async function fetchCorrespondentMessagesFromRest(params: {
     return { counterparty: "", items: [] };
   }
 
-  if (params.isComposeMode) {
-    try {
-      await saveComposeItemAsync(params.item as Office.MessageCompose);
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      throw new Error(
-        attachMailboxSearchHint(`Save draft (needed for REST): ${msg}`)
-      );
-    }
-  }
-
   let token: string;
   try {
-    token = await callbackTokenAsync(params.mailbox);
+    token = await acquireGraphToken();
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    throw new Error(attachMailboxSearchHint(`REST token: ${msg}`));
-  }
-
-  const base = (params.mailbox.restUrl ?? "").replace(TRAILING_SLASH_RE, "");
-  if (!base) {
-    throw new Error(
-      "Outlook restUrl is empty in this host (mailbox search unavailable here)."
-    );
+    throw new Error(attachMailboxSearchHint(`Graph token: ${msg}`));
   }
 
   const segments = historyTimeSegments(params.window);
@@ -576,7 +568,6 @@ export async function fetchCorrespondentMessagesFromRest(params: {
 
   for (const segment of segments) {
     await collectFromSegment(
-      base,
       token,
       segment,
       counterparty,

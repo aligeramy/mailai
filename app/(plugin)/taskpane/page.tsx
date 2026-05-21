@@ -51,9 +51,9 @@ import { useReplyPreferences } from "@/hooks/use-reply-preferences";
 import { stripHtml } from "@/lib/email/html";
 import {
   correspondentHistoryPhaseLabels,
-  isRestMailboxHistoryUnsupportedMessage,
-  restMailboxHistoryUserShortHint,
-} from "@/lib/outlook/correspondent-history-rest";
+  graphMailboxHistoryUserShortHint,
+  isGraphMailboxHistoryUnsupportedMessage,
+} from "@/lib/outlook/correspondent-history-graph";
 import { createEmailProvider } from "@/lib/providers/create-email-provider";
 import {
   REPLY_LENGTH_LABELS,
@@ -347,15 +347,15 @@ async function resolveCorrespondentHistoryBundle(params: {
       return { raw: trimmed };
     }
     return {
-      note: "Mailbox history: no other messages matched (check range, To address, and manifest ReadWriteMailbox).",
+      note: "Mailbox history: no other messages matched (check the range and the To address).",
     };
   } catch (histErr) {
     console.warn("[mailai/taskpane] correspondent history failed", histErr);
     const msg =
       histErr instanceof Error ? histErr.message : "Mailbox history failed.";
-    if (isRestMailboxHistoryUnsupportedMessage(msg)) {
+    if (isGraphMailboxHistoryUnsupportedMessage(msg)) {
       onUnsupportedHost();
-      return { note: restMailboxHistoryUserShortHint() };
+      return { note: graphMailboxHistoryUserShortHint() };
     }
     return { note: `Mailbox history failed: ${msg}` };
   }
@@ -455,7 +455,7 @@ async function runMailboxHistoryPreviewPipeline(params: {
     const msg =
       e instanceof Error ? e.message : "Could not load mailbox history.";
     console.warn("[mailai/taskpane] mailbox history preview failed", e);
-    if (isRestMailboxHistoryUnsupportedMessage(msg)) {
+    if (isGraphMailboxHistoryUnsupportedMessage(msg)) {
       applyMailboxHistoryUnsupportedHost();
     } else {
       setMailboxHistoryPreviewCache({

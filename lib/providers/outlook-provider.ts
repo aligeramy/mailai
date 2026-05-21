@@ -1,7 +1,7 @@
 import {
-  fetchCorrespondentHistoryFromRest,
-  fetchCorrespondentMessagesFromRest,
-} from "@/lib/outlook/correspondent-history-rest";
+  fetchCorrespondentHistoryFromGraph,
+  fetchCorrespondentMessagesFromGraph,
+} from "@/lib/outlook/correspondent-history-graph";
 import type {
   CorrespondentContextWindow,
   CorrespondentHistoryProgress,
@@ -66,14 +66,12 @@ export class OutlookProvider implements EmailProvider {
     if (!this.office?.context?.mailbox?.item) {
       return "";
     }
-    const mailbox = this.getMailbox();
     const item = this.getItem();
     const currentUserEmail = await this.getCurrentUserEmail();
-    return await fetchCorrespondentHistoryFromRest({
+    return await fetchCorrespondentHistoryFromGraph({
       currentUserEmail,
       isComposeMode: this.isComposeMode(),
       item,
-      mailbox,
       onProgress,
       window,
     });
@@ -88,14 +86,12 @@ export class OutlookProvider implements EmailProvider {
     if (!this.office?.context?.mailbox?.item) {
       return { counterparty: "", items: [] };
     }
-    const mailbox = this.getMailbox();
     const item = this.getItem();
     const currentUserEmail = await this.getCurrentUserEmail();
-    return await fetchCorrespondentMessagesFromRest({
+    return await fetchCorrespondentMessagesFromGraph({
       currentUserEmail,
       isComposeMode: this.isComposeMode(),
       item,
-      mailbox,
       window,
     });
   }
