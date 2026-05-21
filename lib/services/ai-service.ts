@@ -127,7 +127,7 @@ export function appendContextBlockToPrompt(
   if (!trimmed) {
     return basePrompt;
   }
-  return `${basePrompt}\n\n${trimmed}\n\nUse the context above to ground facts (names, units, balances, ticket numbers, dates). Do not invent details that aren't supported by it or the thread.`;
+  return `${basePrompt}\n\n${trimmed}\n\nThe context above is verified data about this correspondent: rent amounts, unit and building addresses, account balances, ticket numbers and outcomes, payment dates, etc. When the thread asks about any of these, use the EXACT values from the context — never write placeholder tokens like [amount], [address], [ticket #], or [date]. If a specific fact isn't in the context, simply omit that detail rather than fabricate or template it.`;
 }
 
 export async function compressCorrespondentHistoryForReply(
