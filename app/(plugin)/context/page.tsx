@@ -16,9 +16,9 @@ import { Input } from "@/components/ui/input";
 import { api } from "@/convex/_generated/api";
 
 interface HealthResult {
-  ok: boolean;
-  error?: string;
   durationMs?: number;
+  error?: string;
+  ok: boolean;
   tables?: { name: string; rows: number | null; error?: string }[];
 }
 
