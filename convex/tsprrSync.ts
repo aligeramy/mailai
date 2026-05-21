@@ -55,11 +55,42 @@ function fmtMoney(amount: unknown): string {
   return n.toLocaleString("en-CA", { style: "currency", currency: "CAD" });
 }
 
+// TSP-RR operates out of Toronto. Real timestamps (created_at, completed_at)
+// get shifted into America/Toronto so the AI uses the calendar day humans
+// here see. Date-only columns (lease_start_date, payments.date, etc.) come
+// over the wire as midnight-UTC and must NOT be shifted — that would push
+// every such date one day earlier, since Toronto is west of UTC.
+const TORONTO_DATE_FORMATTER = new Intl.DateTimeFormat("en-CA", {
+  timeZone: "America/Toronto",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
+const UTC_DATE_FORMATTER = new Intl.DateTimeFormat("en-CA", {
+  timeZone: "UTC",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
+const DATE_ONLY_STRING_RE = /^\d{4}-\d{2}-\d{2}$/;
+
 function fmtDate(value: unknown): string {
   if (!value) {
     return "unknown date";
   }
-  return new Date(value as string).toISOString().slice(0, 10);
+  if (typeof value === "string" && DATE_ONLY_STRING_RE.test(value)) {
+    return value;
+  }
+  const d = new Date(value as string);
+  if (Number.isNaN(d.getTime())) {
+    return "unknown date";
+  }
+  const isMidnightUtc =
+    d.getUTCHours() === 0 &&
+    d.getUTCMinutes() === 0 &&
+    d.getUTCSeconds() === 0 &&
+    d.getUTCMilliseconds() === 0;
+  return (isMidnightUtc ? UTC_DATE_FORMATTER : TORONTO_DATE_FORMATTER).format(d);
 }
 
 function within90Days(ts: number | undefined): boolean {

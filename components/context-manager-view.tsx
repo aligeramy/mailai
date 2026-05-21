@@ -280,11 +280,21 @@ function effectiveIncluded(item: Doc<"contextItems">): boolean {
   return item.defaultRelevant;
 }
 
+const TIMESTAMP_FORMATTER = new Intl.DateTimeFormat("en-CA", {
+  timeZone: "America/Toronto",
+  year: "numeric",
+  month: "short",
+  day: "numeric",
+  hour: "numeric",
+  minute: "2-digit",
+  hour12: true,
+});
+
 function formatTimestamp(ts: number | undefined): string {
   if (!ts) {
     return "—";
   }
-  return new Date(ts).toISOString().replace("T", " ").slice(0, 16);
+  return TIMESTAMP_FORMATTER.format(new Date(ts));
 }
 
 interface ContextManagerViewProps {
