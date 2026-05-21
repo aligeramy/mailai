@@ -28,6 +28,7 @@ import {
   useState,
 } from "react";
 import { ContextManagerView } from "@/components/context-manager-view";
+import { ContextSummaryChip } from "@/components/context-summary-chip";
 import { GenerateAiReplyButton } from "@/components/generate-ai-reply-button";
 import { Button } from "@/components/ui/button";
 import {
@@ -1130,6 +1131,17 @@ export default function TaskpanePage() {
               </Button>
             </div>
           ) : null}
+
+          {/* CRM context indicator — shows how many context items will be
+              attached to the reply. Clicking jumps to the Context tab. */}
+          {emailChain && (
+            <div className="mb-2 px-1">
+              <ContextSummaryChip
+                email={resolveCounterpartyFromChain(emailChain)}
+                onOpen={() => setView("context")}
+              />
+            </div>
+          )}
 
           {/* Generate button */}
           <GenerateAiReplyButton
