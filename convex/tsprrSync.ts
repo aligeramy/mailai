@@ -486,6 +486,106 @@ export const syncTsprrForCorrespondent = action({
   },
 });
 
+const HEALTHCHECK_TABLES = [
+  "contacts",
+  "tenants",
+  "unit_tenants",
+  "units",
+  "buildings",
+  "accounts",
+  "tenant_accounts",
+  "canonical_account_balances",
+  "payments",
+  "ledger_transactions",
+  "maintenance_tickets",
+  "maintenance_ticket_units",
+  "maintenance_ticket_history",
+  "maintenance_notes",
+  "prospects",
+  "prospect_personal_details",
+  "prospect_document_tracker",
+  "termination_notices",
+  "parking_requests",
+] as const;
+
+/**
+ * Validate the TSP-RR connection. Confirms the env var is set, mailai_reader
+ * can connect over TLS, run SELECT, and reach every granted table. Returns
+ * one row per table so the UI can flag any that are missing (e.g. after a
+ * future schema change in TSP-RR).
+ */
+export const validateTsprrConnection = action({
+  args: {},
+  handler: async (): Promise<{
+    ok: boolean;
+    error?: string;
+    durationMs?: number;
+    tables?: { name: string; rows: number | null; error?: string }[];
+  }> => {
+    const connectionString = process.env.TSPRR_DATABASE_URL;
+    if (!connectionString) {
+      return {
+        ok: false,
+        error:
+          "TSPRR_DATABASE_URL is not set. Run `npx convex env set TSPRR_DATABASE_URL '<connection string>'`.",
+      };
+    }
+
+    const started = Date.now();
+    let parsed: URL;
+    try {
+      parsed = new URL(connectionString);
+    } catch {
+      return { ok: false, error: "TSPRR_DATABASE_URL is not a valid URL." };
+    }
+
+    const client = new Client({
+      host: parsed.hostname,
+      port: parsed.port ? Number(parsed.port) : 5432,
+      user: decodeURIComponent(parsed.username),
+      password: decodeURIComponent(parsed.password),
+      database: parsed.pathname.replace(LEADING_SLASH_RE, "") || "postgres",
+      ssl: { rejectUnauthorized: false },
+    });
+    const tables: { name: string; rows: number | null; error?: string }[] = [];
+    try {
+      await client.connect();
+      await client.query("SELECT 1");
+      for (const table of HEALTHCHECK_TABLES) {
+        try {
+          const res = await client.query<{ count: string }>(
+            `SELECT count(*)::text AS count FROM public.${table}`
+          );
+          tables.push({
+            name: table,
+            rows: Number(res.rows[0]?.count ?? 0),
+          });
+        } catch (err) {
+          tables.push({
+            name: table,
+            rows: null,
+            error: err instanceof Error ? err.message : String(err),
+          });
+        }
+      }
+    } catch (err) {
+      return {
+        ok: false,
+        error: err instanceof Error ? err.message : String(err),
+        durationMs: Date.now() - started,
+        tables,
+      };
+    } finally {
+      try {
+        await client.end();
+      } catch {
+        /* ignore */
+      }
+    }
+    return { ok: true, durationMs: Date.now() - started, tables };
+  },
+});
+
 function derivePrimaryRole(args: {
   tenantId: string | null;
   prospectId: string | null;
