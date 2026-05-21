@@ -11,6 +11,7 @@ const SOURCE_VALIDATOR = v.union(
   v.literal("outlook"),
   v.literal("graph"),
   v.literal("tsprr"),
+  v.literal("files"),
   v.literal("manual")
 );
 
@@ -316,6 +317,103 @@ export const upsertOutlookMessages = mutation({
     }
 
     return { written };
+  },
+});
+
+/**
+ * Add a markdown file as a context item. Called by the Context tab when the
+ * user uploads a .md/.txt file. Each file becomes its own contextItems row
+ * (source="files", kind="markdown"), included by default. Deletes any prior
+ * file with the same name for the same correspondent to avoid duplicates on
+ * re-upload.
+ */
+export const addContextFile = mutation({
+  args: {
+    email: v.string(),
+    filename: v.string(),
+    content: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const email = normalizeEmail(args.email);
+    if (!email) {
+      throw new Error("email is required");
+    }
+    const content = args.content.trim();
+    if (!content) {
+      throw new Error("file content is empty");
+    }
+    const externalId = `file:${args.filename}`;
+    const existing = await ctx.db
+      .query("contextItems")
+      .withIndex("by_external", (q) =>
+        q.eq("source", "files").eq("externalId", externalId)
+      )
+      .filter((q) => q.eq(q.field("correspondentEmail"), email))
+      .unique();
+
+    const doc = {
+      correspondentEmail: email,
+      source: "files" as const,
+      kind: "markdown",
+      externalId,
+      title: args.filename,
+      snippet: content.slice(0, 220).replace(/\s+/g, " "),
+      bodyForPrompt: content,
+      occurredAt: Date.now(),
+      fetchedAt: Date.now(),
+      defaultRelevant: true,
+    };
+    if (existing) {
+      await ctx.db.patch(existing._id, doc);
+      return existing._id;
+    }
+    return await ctx.db.insert("contextItems", doc);
+  },
+});
+
+/**
+ * Add a typed/pasted manual note as a context item (source="manual",
+ * kind="note"). Use polishManualContext (action) first if you want OpenAI
+ * to structure the raw text.
+ */
+export const addManualContext = mutation({
+  args: {
+    email: v.string(),
+    title: v.string(),
+    content: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const email = normalizeEmail(args.email);
+    if (!email) {
+      throw new Error("email is required");
+    }
+    const content = args.content.trim();
+    if (!content) {
+      throw new Error("content is empty");
+    }
+    return await ctx.db.insert("contextItems", {
+      correspondentEmail: email,
+      source: "manual",
+      kind: "note",
+      title: args.title.trim() || "Manual note",
+      snippet: content.slice(0, 220).replace(/\s+/g, " "),
+      bodyForPrompt: content,
+      occurredAt: Date.now(),
+      fetchedAt: Date.now(),
+      defaultRelevant: true,
+    });
+  },
+});
+
+/**
+ * Delete a single context item. Used by the UI's "Remove" action on
+ * manual notes and uploaded files where outright deletion is preferable
+ * to an exclude-toggle.
+ */
+export const deleteItem = mutation({
+  args: { itemId: v.id("contextItems") },
+  handler: async (ctx, args) => {
+    await ctx.db.delete(args.itemId);
   },
 });
 

@@ -12,6 +12,7 @@ const SOURCE_VALIDATOR = v.union(
   v.literal("outlook"),
   v.literal("graph"),
   v.literal("tsprr"),
+  v.literal("files"),
   v.literal("manual")
 );
 

@@ -13,6 +13,7 @@ const MAX_PAYMENTS = 8;
 const MAX_LEDGER = 12;
 const MAX_TICKETS = 12;
 const MAX_NOTES_PER_TICKET = 3;
+const LEADING_SLASH_RE = /^\//;
 
 type Json = Record<string, unknown>;
 interface SyncItem {
@@ -34,6 +35,16 @@ function dateToMs(value: unknown): number | undefined {
   }
   const t = new Date(value as string).getTime();
   return Number.isFinite(t) ? t : undefined;
+}
+
+/**
+ * node-postgres returns `timestamp`/`date` columns as JS `Date` objects,
+ * which Convex's value validator rejects. Round-trip through JSON so every
+ * Date becomes its ISO string (via Date.prototype.toJSON) while everything
+ * else is preserved. Also strips `undefined` keys for the same reason.
+ */
+function sanitizeForConvex(value: unknown): Json {
+  return JSON.parse(JSON.stringify(value)) as Json;
 }
 
 function fmtMoney(amount: unknown): string {
@@ -87,7 +98,7 @@ function buildContactItem(
     bodyForPrompt: body,
     occurredAt: dateToMs(contact.updated_at) ?? dateToMs(contact.created_at),
     defaultRelevant: true,
-    raw: contact,
+    raw: sanitizeForConvex(contact),
   };
 }
 
@@ -125,7 +136,7 @@ function buildTenantItem(
     bodyForPrompt: body,
     occurredAt: dateToMs(tenant.updated_at) ?? dateToMs(tenant.created_at),
     defaultRelevant: true,
-    raw: { tenant, unit, building },
+    raw: sanitizeForConvex({ tenant, unit, building }),
   };
 }
 
@@ -171,7 +182,7 @@ function buildAccountItem(
     bodyForPrompt: body,
     occurredAt: dateToMs(account.created_at),
     defaultRelevant: true,
-    raw: { account, balance },
+    raw: sanitizeForConvex({ account, balance }),
   };
 }
 
@@ -201,7 +212,7 @@ function buildPaymentItem(email: string, p: Json): SyncItem {
       .join("\n"),
     occurredAt,
     defaultRelevant: within90Days(occurredAt),
-    raw: p,
+    raw: sanitizeForConvex(p),
   };
 }
 
@@ -224,7 +235,7 @@ function buildLedgerItem(email: string, l: Json): SyncItem {
       .join("\n"),
     occurredAt,
     defaultRelevant: within90Days(occurredAt),
-    raw: l,
+    raw: sanitizeForConvex(l),
   };
 }
 
@@ -258,7 +269,7 @@ function buildTicketItem(email: string, t: Json, notes: Json[]): SyncItem {
       .join("\n"),
     occurredAt,
     defaultRelevant: isOpen || within90Days(occurredAt),
-    raw: { ticket: t, notes },
+    raw: sanitizeForConvex({ ticket: t, notes }),
   };
 }
 
@@ -307,7 +318,7 @@ function buildProspectItem(
       .join("\n"),
     occurredAt: dateToMs(prospect.updated_at) ?? dateToMs(prospect.created_at),
     defaultRelevant: true,
-    raw: { prospect, pd, docTracker },
+    raw: sanitizeForConvex({ prospect, pd, docTracker }),
   };
 }
 
@@ -335,7 +346,7 @@ function buildTerminationItem(email: string, n: Json): SyncItem {
       .join("\n"),
     occurredAt: dateToMs(n.notice_date) ?? dateToMs(n.created_at),
     defaultRelevant: !n.actual_move_out_date,
-    raw: n,
+    raw: sanitizeForConvex(n),
   };
 }
 
@@ -363,7 +374,7 @@ function buildParkingItem(email: string, p: Json): SyncItem {
       p.status !== "denied" &&
       p.status !== "expired" &&
       within90Days(dateToMs(p.approved_end_date) ?? dateToMs(p.created_at)),
-    raw: p,
+    raw: sanitizeForConvex(p),
   };
 }
 
@@ -417,8 +428,20 @@ export const syncTsprrForCorrespondent = action({
       { correspondentEmail: normalized, source: "tsprr" }
     );
 
+    // Parse URL explicitly so the ssl config below isn't shadowed by a
+    // `sslmode=` query parameter in the connection string. Supabase's
+    // managed Postgres serves a chain signed by an intermediate CA that
+    // isn't in Node's default trust store, so we disable cert validation.
+    // This is acceptable because (a) we connect over TLS — the wire is
+    // still encrypted, (b) mailai_reader is read-only at the DB level, and
+    // (c) the connection target is pinned by env var, not user input.
+    const parsed = new URL(connectionString);
     const client = new Client({
-      connectionString,
+      host: parsed.hostname,
+      port: parsed.port ? Number(parsed.port) : 5432,
+      user: decodeURIComponent(parsed.username),
+      password: decodeURIComponent(parsed.password),
+      database: parsed.pathname.replace(LEADING_SLASH_RE, "") || "postgres",
       ssl: { rejectUnauthorized: false },
     });
     const items: SyncItem[] = [];
