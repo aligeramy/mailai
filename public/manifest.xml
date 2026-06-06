@@ -7,7 +7,7 @@
   xsi:type="MailApp">
 
   <!-- Production add-in identity. Do not change after publish; use the same Id for all manifest updates. -->
-  <Id>2e29943c-a5b3-4c78-8826-46fc792f684a</Id>
+  <Id>2E29943C-A5B3-4C78-8826-46FC792F684A</Id>
   <Version>1.0.0.0</Version>
   <ProviderName>SmartReply</ProviderName>
   <DefaultLocale>en-US</DefaultLocale>

@@ -32,6 +32,7 @@ export const OUTLOOK_ADDIN_URL =
   "https://outlook.office.com/mail/inbox";
 
 export const TERMS_URL = `${SITE_URL}/terms`;
+export const EULA_URL = `${SITE_URL}/eula`;
 export const PRIVACY_URL = `${SITE_URL}/privacy`;
 
 /** Public support form (also set as Outlook manifest SupportUrl). */

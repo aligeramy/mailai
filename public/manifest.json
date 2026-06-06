@@ -1,0 +1,215 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/teams/v1.17/MicrosoftTeams.schema.json#",
+  "manifestVersion": "1.17",
+  "version": "1.0.0",
+  "id": "2E29943C-A5B3-4C78-8826-46FC792F684A",
+  "localizationInfo": {
+    "defaultLanguageTag": "en-us"
+  },
+  "developer": {
+    "name": "SmartReply",
+    "websiteUrl": "https://smartreply.space",
+    "privacyUrl": "https://smartreply.space/privacy",
+    "termsOfUseUrl": "https://smartreply.space/terms"
+  },
+  "name": {
+    "short": "SmartReply",
+    "full": "SmartReply"
+  },
+  "description": {
+    "short": "Draft AI replies in Outlook with thread context. Uses OpenAI when you generate.",
+    "full": "Draft AI replies with full thread context in Outlook. Works in read and compose. Requires OpenAI API access (your key or the host's)."
+  },
+  "icons": {
+    "outline": "assets/icon-outline-32.png",
+    "color": "assets/icon-color-192.png"
+  },
+  "accentColor": "#230201",
+  "validDomains": ["smartreply.space"],
+  "showLoadingIndicator": false,
+  "isFullScreen": false,
+  "defaultBlockUntilAdminAction": false,
+  "authorization": {
+    "permissions": {
+      "resourceSpecific": [
+        {
+          "name": "Mailbox.ReadWrite.User",
+          "type": "Delegated"
+        }
+      ]
+    }
+  },
+  "extensions": [
+    {
+      "requirements": {
+        "capabilities": [
+          {
+            "name": "Mailbox",
+            "minVersion": "1.3"
+          }
+        ],
+        "scopes": ["mail"]
+      },
+      "runtimes": [
+        {
+          "requirements": {
+            "capabilities": [
+              {
+                "name": "Mailbox",
+                "minVersion": "1.3"
+              }
+            ],
+            "formFactors": ["desktop"]
+          },
+          "id": "runtime_1",
+          "type": "general",
+          "code": {
+            "page": "https://smartreply.space/taskpane"
+          },
+          "lifetime": "short",
+          "actions": [
+            {
+              "id": "action_1",
+              "type": "openPage",
+              "displayName": "action_1",
+              "pinnable": false,
+              "view": "view_1",
+              "multiselect": false,
+              "supportsNoItemContext": false
+            },
+            {
+              "id": "action_2",
+              "type": "openPage",
+              "displayName": "action_2",
+              "pinnable": false,
+              "view": "view_2",
+              "multiselect": false,
+              "supportsNoItemContext": false
+            }
+          ]
+        }
+      ],
+      "ribbons": [
+        {
+          "requirements": {
+            "capabilities": [
+              {
+                "name": "Mailbox",
+                "minVersion": "1.3"
+              }
+            ],
+            "scopes": ["mail"],
+            "formFactors": ["desktop"]
+          },
+          "contexts": ["mailRead"],
+          "tabs": [
+            {
+              "builtInTabId": "TabDefault",
+              "groups": [
+                {
+                  "id": "msgReadGroup",
+                  "label": "SmartReply",
+                  "controls": [
+                    {
+                      "id": "msgReadOpenPaneButton",
+                      "type": "button",
+                      "label": "AI Reply",
+                      "icons": [
+                        {
+                          "size": 16,
+                          "url": "https://smartreply.space/assets/icon-16.png"
+                        },
+                        {
+                          "size": 32,
+                          "url": "https://smartreply.space/assets/icon-32.png"
+                        },
+                        {
+                          "size": 80,
+                          "url": "https://smartreply.space/assets/icon-80.png"
+                        }
+                      ],
+                      "supertip": {
+                        "title": "AI Reply",
+                        "description": "Generate an AI-powered reply to this email conversation"
+                      },
+                      "actionId": "action_1",
+                      "overriddenByRibbonApi": false,
+                      "enabled": true
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "requirements": {
+            "capabilities": [
+              {
+                "name": "Mailbox",
+                "minVersion": "1.3"
+              }
+            ],
+            "scopes": ["mail"],
+            "formFactors": ["desktop"]
+          },
+          "contexts": ["mailCompose"],
+          "tabs": [
+            {
+              "builtInTabId": "TabDefault",
+              "groups": [
+                {
+                  "id": "msgComposeGroup",
+                  "label": "SmartReply",
+                  "controls": [
+                    {
+                      "id": "msgComposeOpenPaneButton",
+                      "type": "button",
+                      "label": "AI Reply",
+                      "icons": [
+                        {
+                          "size": 16,
+                          "url": "https://smartreply.space/assets/icon-16.png"
+                        },
+                        {
+                          "size": 32,
+                          "url": "https://smartreply.space/assets/icon-32.png"
+                        },
+                        {
+                          "size": 80,
+                          "url": "https://smartreply.space/assets/icon-80.png"
+                        }
+                      ],
+                      "supertip": {
+                        "title": "AI Reply",
+                        "description": "Generate an AI-powered reply to this email conversation"
+                      },
+                      "actionId": "action_2",
+                      "overriddenByRibbonApi": false,
+                      "enabled": true
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "alternates": [
+        {
+          "alternateIcons": {
+            "icon": {
+              "size": 64,
+              "url": "https://smartreply.space/assets/icon-64.png"
+            },
+            "highResolutionIcon": {
+              "size": 64,
+              "url": "https://smartreply.space/assets/icon-128.png"
+            }
+          }
+        }
+      ],
+      "audienceClaimUrl": "https://smartreply.space/taskpane"
+    }
+  ]
+}

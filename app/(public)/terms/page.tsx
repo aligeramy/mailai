@@ -7,7 +7,7 @@ import {
   TERMS_URL,
 } from "@/lib/site-config";
 
-const LAST_UPDATED = "March 24, 2025";
+const LAST_UPDATED = "March 27, 2026";
 
 export const metadata: Metadata = {
   title: "Terms of Service",
@@ -79,10 +79,12 @@ export default function TermsPage() {
 
       <h2 id="third-party-services">Third-party services</h2>
       <p>
-        The Service may integrate with Microsoft Outlook, Microsoft 365, AI
-        providers, and other third-party services. Your use of those services is
-        governed by their own terms and policies, and we are not responsible for
-        third-party systems or outages.
+        The Service may integrate with Microsoft Outlook, Microsoft 365, and
+        other third-party services. AI-generated replies are produced using the{" "}
+        <strong className="text-foreground">OpenAI API</strong> when you use
+        those features. Your use of those services is governed by their own
+        terms and policies, and we are not responsible for third-party systems
+        or outages.
       </p>
 
       <h2 id="outlook">Outlook and Microsoft</h2>

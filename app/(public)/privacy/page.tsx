@@ -7,7 +7,7 @@ import {
   SUPPORT_INBOX_EMAIL,
 } from "@/lib/site-config";
 
-const LAST_UPDATED = "March 24, 2025";
+const LAST_UPDATED = "March 27, 2026";
 
 export const metadata: Metadata = {
   title: "Privacy Policy",
@@ -107,10 +107,20 @@ export default function PrivacyPage() {
 
       <h2 id="ai-providers">AI providers</h2>
       <p>
-        When you use AI features, your prompts and related context may be sent
-        to third-party AI providers to generate output. Those providers process
-        the data under their own terms and privacy policies. Do not submit
-        highly sensitive information unless you understand the risks.
+        When you use AI reply features, your prompts and related context are
+        sent to <strong className="text-foreground">OpenAI</strong> (OpenAI, Op.
+        L.L.C. and affiliates) via the OpenAI API to generate output. OpenAI
+        processes that data under its own terms and{" "}
+        <a
+          className="text-foreground underline decoration-border underline-offset-4 hover:decoration-foreground"
+          href="https://openai.com/policies/privacy-policy/"
+          rel="noopener noreferrer"
+          target="_blank"
+        >
+          privacy policy
+        </a>
+        . Do not submit highly sensitive information unless you understand the
+        risks.
       </p>
 
       <h2 id="retention">Retention</h2>

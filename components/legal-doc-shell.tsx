@@ -112,6 +112,14 @@ export function LegalDocShell({
               <li>
                 <Link
                   className="text-muted-foreground underline decoration-border underline-offset-4 transition-colors hover:text-foreground"
+                  href="/eula"
+                >
+                  EULA
+                </Link>
+              </li>
+              <li>
+                <Link
+                  className="text-muted-foreground underline decoration-border underline-offset-4 transition-colors hover:text-foreground"
                   href="/privacy"
                 >
                   Privacy

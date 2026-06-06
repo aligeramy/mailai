@@ -128,9 +128,21 @@ export default function Home() {
             </Link>
             <Link
               className="underline decoration-border underline-offset-4 transition-colors hover:text-foreground"
+              href="/eula"
+            >
+              EULA
+            </Link>
+            <Link
+              className="underline decoration-border underline-offset-4 transition-colors hover:text-foreground"
               href="/privacy"
             >
               Privacy
+            </Link>
+            <Link
+              className="underline decoration-border underline-offset-4 transition-colors hover:text-foreground"
+              href="/support"
+            >
+              Support
             </Link>
           </nav>
         </div>
